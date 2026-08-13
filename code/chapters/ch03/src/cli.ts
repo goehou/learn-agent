@@ -18,6 +18,7 @@ import { profileForChapter } from "./core/profiles.js";
 
 // CLI 适配器提供人工审批与审计输出；策略本身不依赖终端实现。
 class TerminalApprovalProvider implements ApprovalProvider {
+  // 在终端收敛 ask 决策；无 TTY、异常或非肯定回答一律返回 deny。
   async decide(request: PermissionRequest): Promise<PermissionDecision> {
     const definition = request.prepared.definition;
     const proposed = request.proposedDecision;
@@ -54,6 +55,7 @@ class TerminalApprovalProvider implements ApprovalProvider {
 }
 
 class TerminalAuditSink implements AuditSink {
+  // 将最终权限结论写入 stderr，避免混入用户可见最终回答的 stdout。
   async record(request: PermissionRequest, decision: PermissionDecision): Promise<void> {
     // 审计输出使用 stderr，避免污染最终回复 stdout。
     const definition = request.prepared.definition;
@@ -67,10 +69,13 @@ class TerminalAuditSink implements AuditSink {
 }
 
 interface RunArguments {
+  // 映射为固定 profile 的章节号。
   readonly chapter: number;
+  // 传给 AgentRunner 的用户任务。
   readonly prompt: string;
 }
 
+// 解析通用或固定章节入口参数；fixedChapter 防止脚本入口被 --chapter 覆盖。
 function parseRunArguments(argv: readonly string[], fixedChapter?: number): RunArguments {
   // 固定章节入口复用同一解析器，并由此禁止传入另一个 --chapter。
   const args = fixedChapter === undefined ? argv : ["--chapter", String(fixedChapter), ...argv];
@@ -105,6 +110,7 @@ function parseRunArguments(argv: readonly string[], fixedChapter?: number): RunA
   return { chapter, prompt };
 }
 
+// 真实启动路径：加载配置、创建模型/文件边界、注入终端审批与审计并输出最终文本。
 async function execute(profile: ChapterProfile, prompt: string): Promise<number> {
   // 工作区以当前目录为唯一文件和命令边界，避免从命令行接收额外路径。
   const workspace = resolve(process.cwd());
@@ -145,6 +151,7 @@ export async function runProfile(
   });
 }
 
+// 进程边界将配置失败和运行失败转换为稳定中文标签与退出码。
 async function runWithErrorHandling(run: () => Promise<number>): Promise<number> {
   // 进程边界将预期配置错误与运行错误映射为稳定退出码。
   try {

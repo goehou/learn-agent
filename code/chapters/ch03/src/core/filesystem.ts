@@ -23,13 +23,17 @@ export interface WorkspaceWriteBoundary {
 
 export interface WorkspaceFileSystem extends WorkspaceWriteBoundary {
   // 仅声明 Agent 工具需要的工作区文件能力。
+  // 读取严格 UTF-8 文本；limit 存在时按规范化行数截断。
   readFile(workspace: string, relativePath: string, limit?: number): Promise<string>;
+  // 写入完整 UTF-8 内容并返回字节数。
   writeFile(workspace: string, relativePath: string, content: string): Promise<number>;
+  // 仅替换第一次精确匹配，找不到时不写入变更。
   editFile(
     workspace: string,
     relativePath: string,
     oldText: string,
     newText: string,
   ): Promise<void>;
+  // 按受限 glob 子集返回稳定排序的工作区相对路径。
   globFiles(workspace: string, pattern: string): Promise<readonly string[]>;
 }

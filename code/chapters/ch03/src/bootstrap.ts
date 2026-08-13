@@ -18,14 +18,21 @@ const SYSTEM_PROMPT =
 export interface BuildDependencies {
   // 外部边界均可注入，离线测试无需启动真实进程或网络客户端。
   readonly model: ModelClient;
+  // 命令和文件工具共享的工作区根。
   readonly workspace: string;
+  // 可替换命令执行边界。
   readonly commandRunner?: CommandRunner;
+  // 可替换文件系统边界，同时用于写路径安全校验。
   readonly fileSystem?: WorkspaceFileSystem;
+  // P03 及以后必需的 ask 决策收敛边界。
   readonly approvalProvider?: ApprovalProvider;
+  // P03 及以后必需的最终决策审计边界。
   readonly auditSink?: AuditSink;
+  // 可选模型回合上限。
   readonly maxTurns?: number;
 }
 
+// 根据固定章节 profile 组合累计工具与权限策略，拒绝同号伪造 profile。
 export function buildAgent(profile: ChapterProfile, dependencies: BuildDependencies): AgentRunner {
   // 禁止调用方伪造同章节号但能力不同的 profile，保持教学快照固定。
   if (profileForChapter(profile.chapter) !== profile) {
@@ -50,6 +57,7 @@ export function buildAgent(profile: ChapterProfile, dependencies: BuildDependenc
   });
 }
 
+// 为具 policy 能力的章节构造完整策略；旧 profile 保持与前章一致的直接执行路径。
 function permissionPolicyForProfile(
   profile: ChapterProfile,
   fileSystem: WorkspaceFileSystem,

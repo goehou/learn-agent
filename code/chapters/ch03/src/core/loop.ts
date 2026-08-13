@@ -24,31 +24,51 @@ export class IncompleteModelReplyError extends AgentRunError {
 }
 
 export interface RunResult {
+  // 模型停止时提供的最终可交付文本。
   readonly finalText: string;
+  // 与内部状态隔离的完整消息历史。
   readonly history: readonly ChatMessage[];
+  // 本次运行实际请求模型的次数。
   readonly turns: number;
 }
 
 export interface AgentRunnerOptions {
+  // 供应商无关的模型边界。
   readonly model: ModelClient;
+  // 每轮请求时会生成快照的工具注册表。
   readonly tools: ToolRegistry;
+  // 每轮临时前置而不写入 history 的系统提示。
   readonly systemPrompt: string;
+  // 工具调用可访问的工作区根。
   readonly workspace: string;
+  // 可选模型请求上限。
   readonly maxTurns?: number;
+  // 注入工具上下文的主体标识。
   readonly identity?: string;
+  // P03 的执行前权限策略；缺失时保留早期章节直调行为。
   readonly permissionPolicy?: PermissionPolicy;
 }
 
+// 单会话状态机；仅当 PermissionPolicy 产出 allow 时才调用工具 handler。
 export class AgentRunner {
+  // 已规范化的模型客户端。
   readonly #model: ModelClient;
+  // 用于生成本轮不可变视图的源注册表。
   readonly #tools: ToolRegistry;
+  // 稳定系统提示。
   readonly #systemPrompt: string;
+  // 规范化后的工作区根。
   readonly #workspace: string;
+  // 最大模型请求次数。
   readonly #maxTurns: number;
+  // 当前调用主体。
   readonly #identity: string;
+  // 可选权限策略，负责审批、审计和写边界。
   readonly #permissionPolicy: PermissionPolicy | undefined;
+  // 累计的用户、模型和工具消息，不包含每轮重建的系统消息。
   readonly #history: ChatMessage[] = [];
 
+  // 验证长期配置并固定依赖，失败发生在模型请求和副作用之前。
   constructor(options: AgentRunnerOptions) {
     const maxTurns = options.maxTurns === undefined ? 20 : options.maxTurns;
     if (!Number.isInteger(maxTurns) || maxTurns <= 0) {
@@ -71,10 +91,12 @@ export class AgentRunner {
     this.#permissionPolicy = options.permissionPolicy;
   }
 
+  // 返回冻结历史副本，调用方不能篡改后续模型请求。
   get history(): readonly ChatMessage[] {
     return Object.freeze([...this.#history]);
   }
 
+  // 执行用户请求，直到得到最终文本、遇到不可恢复响应或耗尽回合。
   async run(prompt: string): Promise<RunResult> {
     // history 是单个 Runner 的累积会话；每轮请求重建系统消息和工具快照。
     this.#history.push(userMessage(prompt));

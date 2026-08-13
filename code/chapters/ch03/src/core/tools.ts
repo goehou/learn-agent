@@ -7,14 +7,20 @@ import type { OpenAIToolSchema } from "./model.js";
 export type EffectClass = "read" | "write" | "execute" | "external";
 
 export interface ToolContext {
+  // 所有文件和命令工具必须使用的工作区根。
   readonly workspace: string;
+  // 供权限策略和审计使用的调用主体。
   readonly identity: string;
+  // 为副作用重试保留的可选去重关联。
   readonly idempotencyKey?: string;
 }
 
 export interface ToolResult {
+  // 模型可读取的成功输出或错误正文。
   readonly content: string;
+  // 是否为错误结果，决定 errorCode 的约束。
   readonly isError: boolean;
+  // 错误时必须存在的机器可读稳定码。
   readonly errorCode?: string;
 }
 
@@ -36,10 +42,15 @@ export function toolError(errorCode: string, message: string): ToolResult {
 }
 
 export interface ToolDefinition<Input> {
+  // 提供给模型和注册表的稳定工具名。
   readonly name: string;
+  // 面向模型的使用说明。
   readonly description: string;
+  // 在执行前校验模型 JSON 参数的 schema。
   readonly inputSchema: z.ZodType<Input>;
+  // 权限策略使用的副作用分类。
   readonly effect: EffectClass;
+  // 已验证输入的实际执行器。
   readonly handler: (input: Input, context: ToolContext) => Promise<ToolResult> | ToolResult;
 }
 
@@ -53,16 +64,23 @@ export interface StoredToolDefinition {
 }
 
 export interface PreparedToolCall {
+  // 原始但字段完整的模型调用。
   readonly call: ToolCall;
+  // 成功或参数错误时对应的注册工具。
   readonly definition?: StoredToolDefinition;
+  // 通过 schema 的参数对象。
   readonly arguments?: unknown;
+  // 模型输入失败时可直接回填的结果。
   readonly error?: ToolResult;
 }
 
 export class ToolRegistry {
+  // 按名称保存唯一工具定义。
   readonly #definitions: Map<string, StoredToolDefinition>;
+  // false 表示模型请求期间不可变的注册表快照。
   readonly #mutable: boolean;
 
+  // 复制定义映射，避免外部 Map 继续改变当前视图。
   constructor(definitions: ReadonlyMap<string, StoredToolDefinition> = new Map(), mutable = true) {
     this.#definitions = new Map(definitions);
     this.#mutable = mutable;
@@ -73,6 +91,7 @@ export class ToolRegistry {
     return Object.freeze([...this.#definitions.keys()]);
   }
 
+  // 校验元数据并注册工具，将泛型 handler 封装为运行期入口。
   register<Input>(definition: ToolDefinition<Input>): void {
     if (!this.#mutable) {
       throw new Error("tool registry snapshot is immutable");
@@ -99,11 +118,13 @@ export class ToolRegistry {
     this.#definitions.set(definition.name, stored);
   }
 
+  // 复制为不可写快照，让模型可见工具集与本轮实际执行集一致。
   snapshot(): ToolRegistry {
     // 每轮使用不可变快照，避免模型请求与执行之间的注册表被篡改。
     return new ToolRegistry(this.#definitions, false);
   }
 
+  // 从注册定义生成模型工具 schema，避免与 handler 平行维护。
   openAITools(): readonly OpenAIToolSchema[] {
     // 只序列化模型可见字段；handler、effect 与内部 Map 保持在模型视野之外。
     return Object.freeze(
@@ -118,6 +139,7 @@ export class ToolRegistry {
     );
   }
 
+  // 查找工具、解析 JSON 并校验 schema；所有模型输入错误转为回填结果。
   prepare(call: ToolCall): PreparedToolCall {
     // 解析与 schema 校验先于权限策略；策略永远面对可信的工具定义和参数。
     const definition = this.#definitions.get(call.name);
@@ -154,6 +176,7 @@ export class ToolRegistry {
     return { call, definition, arguments: parsed.data };
   }
 
+  // 调用已准备工具，并把 handler 异常或无效返回值规范化为 ToolResult。
   async invoke(prepared: PreparedToolCall, context: ToolContext): Promise<ToolResult> {
     if (prepared.error !== undefined) {
       return prepared.error;

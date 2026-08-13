@@ -2,7 +2,9 @@
 export type Capability = "loop" | "powershell" | "tool_registry" | "files" | "policy";
 
 export interface ChapterProfile {
+  // 固定章节号，组合根依此拒绝能力越级。
   readonly chapter: number;
+  // 不可变能力白名单，决定本章可装配组件。
   readonly capabilities: ReadonlySet<Capability>;
 }
 
@@ -14,26 +16,32 @@ class CapabilitySet implements ReadonlySet<Capability> {
     this.#values = new Set(values);
   }
 
+  // 返回能力数量，不暴露可变 Set。
   get size(): number {
     return this.#values.size;
   }
 
+  // 判断能力是否属于当前章节白名单。
   has(value: Capability): boolean {
     return this.#values.has(value);
   }
 
+  // 返回键值对迭代器以兼容 ReadonlySet。
   entries(): SetIterator<[Capability, Capability]> {
     return this.#values.entries();
   }
 
+  // 返回能力名称迭代器。
   keys(): SetIterator<Capability> {
     return this.#values.keys();
   }
 
+  // 返回能力值迭代器；Set 的键和值相同。
   values(): SetIterator<Capability> {
     return this.#values.values();
   }
 
+  // 以原生 Set 回调签名遍历能力。
   forEach(
     callbackfn: (value: Capability, value2: Capability, set: ReadonlySet<Capability>) => void,
     thisArg?: unknown,
@@ -43,6 +51,7 @@ class CapabilitySet implements ReadonlySet<Capability> {
     });
   }
 
+  // 支持 for...of 而不暴露写入入口。
   [Symbol.iterator](): SetIterator<Capability> {
     return this.values();
   }
@@ -66,6 +75,7 @@ export const P03: ChapterProfile = Object.freeze({
   capabilities: new CapabilitySet(["loop", "powershell", "tool_registry", "files", "policy"]),
 });
 
+// 返回模块内冻结单例，拒绝无效或尚未迁移的章节号。
 export function profileForChapter(chapter: number): ChapterProfile {
   // 仅返回模块内冻结的单例，供组合根用引用相等性校验 profile 来源。
   if (chapter === 1) {
