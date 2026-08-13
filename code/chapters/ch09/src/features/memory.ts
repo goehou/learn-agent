@@ -54,13 +54,18 @@ export const MemoryType = Object.freeze({
   REFERENCE: "reference",
 } as const);
 
+// 记忆类别用于选择和整理阶段的稳定路由，不允许模型写入其他类型。
 export type MemoryType = (typeof MemoryType)[keyof typeof MemoryType];
 
 // MemoryRecord 是不可变值对象；名称直接决定文件名，因此先做安全 slug 校验再落盘。
 export interface MemoryRecordOptions {
+  // slug 同时作为逻辑名称和文件名的一部分，必须保持稳定且安全。
   readonly name: string;
+  // 目录索引展示的一行摘要。
   readonly description: string;
+  // 便于按用户偏好、反馈、项目或参考资料分类。
   readonly kind: MemoryType;
+  // 记忆正文，序列化前会统一换行并执行大小预算。
   readonly body: string;
 }
 
@@ -190,9 +195,13 @@ interface MemoryStorePaths {
 }
 
 export interface MemoryStoreOptions {
+  // 所有 .memory 文件都归属于此工作区，不能跨工作区读取。
   readonly workspace: string;
+  // 生成记录文件后缀的 slug 工厂，可在测试中固定。
   readonly idGenerator?: () => string;
+  // 派生 MEMORY.md 索引的行数上限。
   readonly maxIndexLines?: number;
+  // 派生 MEMORY.md 索引的 UTF-8 字节上限。
   readonly maxIndexBytes?: number;
 }
 
@@ -597,7 +606,9 @@ export class MemorySession {
   readonly #maxSelected: number;
   readonly #consolidateThreshold: number;
   readonly #emitContextMessages: boolean;
+  // 当前回合选中的只读快照；下一回合 beginTurn 会完全替换。
   #selected: readonly MemoryRecord[] = Object.freeze([]);
+  // 记忆 side-query 或持久化失败只记录在此，不阻断主 Agent 回答。
   #lastError: string | undefined;
 
   constructor(options: MemorySessionOptions) {
@@ -625,6 +636,7 @@ export class MemorySession {
   }
 
   // 回合开始先读当前集合；模型选择失败时使用确定性关键词回退，不让记忆问题中断主任务。
+  // 回合前选择相关记忆；模型选择失败时退回确定性关键词匹配。
   async beginTurn(query: string): Promise<void> {
     const records = await this.#store.records();
     this.#selected = Object.freeze([]);
@@ -679,6 +691,7 @@ export class MemorySession {
   }
 
   // 回合结束用完整 canonical history 提取；提取、整理或写入失败只记录 lastError，不改变旧集合。
+  // 回合结束从完整 canonical history 提取并追加或整理记忆。
   async complete(history: readonly ChatMessage[]): Promise<void> {
     const current = await this.#store.records();
     let candidate = current;
