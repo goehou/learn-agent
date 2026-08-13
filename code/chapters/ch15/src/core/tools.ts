@@ -10,8 +10,11 @@ export type EffectClass = "read" | "write" | "execute" | "external";
 export type ConcurrencyClass = "inline" | "background_eligible";
 
 export interface ToolContext {
+  // 所有文件和命令副作用的工作区根边界。
   readonly workspace: string;
+  // 当前调用主体；队友 Runner 使用各自的规范 Agent 名。
   readonly identity: string;
+  // mailbox 消息 UUID 可作为幂等键透传到工具执行。
   readonly idempotencyKey?: string;
 }
 
@@ -58,6 +61,7 @@ export interface ToolDefinition<Input> {
   readonly description: string;
   readonly inputSchema: z.ZodType<Input>;
   readonly effect: EffectClass;
+  // 声明工具是否允许 Dispatcher 转为后台作业。
   readonly concurrency?: ConcurrencyClass;
   readonly handler: (input: Input, context: ToolContext) => Promise<ToolResult> | ToolResult;
 }
@@ -68,6 +72,7 @@ export interface StoredToolDefinition {
   readonly description: string;
   readonly inputSchema: z.ZodType<unknown>;
   readonly effect: EffectClass;
+  // 注册时已归一化为 inline 或 background_eligible。
   readonly concurrency: ConcurrencyClass;
   readonly invoke: (input: unknown, context: ToolContext) => Promise<ToolResult>;
 }
@@ -138,6 +143,7 @@ export class ToolRegistry {
   }
 
   // subset 只暴露显式声明的工具，队友运行时用它限制模型可调用的能力。
+  // 为队友构造按名称白名单裁剪的独立可变注册表，不共享后续注册状态。
   subset(names: readonly string[]): ToolRegistry {
     const definitions = new Map<string, StoredToolDefinition>();
     for (const name of names) {

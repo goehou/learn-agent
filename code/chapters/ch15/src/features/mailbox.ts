@@ -45,12 +45,18 @@ export class MailboxStorageError extends MailboxError {
 export interface MailboxMessage extends RuntimeEvent {
   // 邮箱消息以稳定 id、发送者和接收者建模，持久层据此保证投递与确认可追踪。
   readonly id: string;
+  // 发送方和接收方均为可安全用作目录名的规范 Agent slug。
   readonly sender: string;
   readonly recipient: string;
+  // task/message/result 只影响消费者语义，不改变投递状态机。
   readonly kind: MailboxMessageKind;
+  // 交给目标 Agent 的原始文本负载。
   readonly content: string;
+  // 决定同一收件箱内稳定 FIFO 次序的 UTC 时间。
   readonly createdAtUtc: Date;
+  // RuntimeEvent 的去重 id 与消息主键一致。
   readonly eventId: string;
+  // 工具副作用幂等键与消息 UUID 一致，重试不会生成新身份。
   readonly idempotencyKey: string;
 }
 
@@ -62,10 +68,15 @@ export interface MailboxStore {
     content: string,
     kind: MailboxMessageKind,
   ): Promise<MailboxMessage>;
+  // 原子认领最早 ready 消息并迁移为 processing；空邮箱返回 undefined。
   claim(recipient: string): Promise<MailboxMessage | undefined>;
+  // processing -> done；相同完成记录允许幂等确认。
   ack(message: MailboxMessage): Promise<boolean>;
+  // processing -> ready，用于取消、关闭或可重试失败。
   release(message: MailboxMessage): Promise<boolean>;
+  // processing -> quarantine，用于不可自动重试的业务失败。
   quarantine(message: MailboxMessage): Promise<boolean>;
+  // 进程恢复时把遗留 processing 租约退回 ready，并返回恢复数量。
   recoverProcessing(recipient: string): Promise<number>;
 }
 
@@ -79,6 +90,7 @@ export const spawnTeammateInputSchema = z
     prompt: z.string(),
   })
   .strict();
+// spawn_teammate 的严格工具输入，不允许模型指定 sender 或运行时身份。
 export type SpawnTeammateInput = z.infer<typeof spawnTeammateInputSchema>;
 
 export const sendMessageInputSchema = z
@@ -87,6 +99,7 @@ export const sendMessageInputSchema = z
     content: z.string(),
   })
   .strict();
+// send_message 的严格工具输入；sender 始终来自 ToolContext.identity。
 export type SendMessageInput = z.infer<typeof sendMessageInputSchema>;
 
 export function canonicalAgentName(value: string): string {

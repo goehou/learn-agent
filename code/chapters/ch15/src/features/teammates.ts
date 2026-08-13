@@ -69,11 +69,15 @@ export class TeammateClosedError extends TeammateError {
 }
 
 export interface Teammate {
+  // 规范 Agent slug，同时作为 mailbox recipient 和 ToolContext.identity。
   readonly name: string;
+  // 创建时固定的职责描述，用于构造独立 Runner 提示。
   readonly role: string;
+  // 当前进程内 worker 状态快照。
   readonly status: TeammateStatus;
 }
 
+// 工厂为每名队友创建独立历史的 AgentRunner，并只暴露受控 send_message 工具。
 export type TeammateRunnerFactory = (
   name: string,
   role: string,
@@ -82,14 +86,19 @@ export type TeammateRunnerFactory = (
 
 // Worker 保存队友的可观察快照和后台运行句柄；task/abort/currentMessage 只在单次 worker 循环期间存在。
 interface Worker {
+  // 对外可观察的不可变队友快照；状态变化时整体替换。
   teammate: Teammate;
+  // 该队友独占的 AgentRunner 和 canonical history。
   readonly runner: AgentRunner;
   // supervisor 下的受管任务；undefined 表示当前没有在途循环，可以安全重启。
   task: Promise<void> | undefined;
   // 当前 processing 租约；close 或取消时必须 release 回 ready，不能静默丢弃。
   currentMessage: MailboxMessage | undefined;
+  // 当前 worker 循环的取消控制器。
   abort: AbortController | undefined;
+  // runner 与消息租约均成功清理后才为 true，支持 close 重试。
   closeComplete: boolean;
+  // release 失败暂存到 close 边界统一报告。
   cleanupFailure: unknown | undefined;
 }
 
@@ -100,16 +109,22 @@ export class TeammateRuntime {
   readonly #supervisor: JobSupervisor;
   readonly #cronRuntime: CronRuntime;
   readonly #leadName: string;
+  // 当前进程已创建的队友注册表，不从磁盘自动重建 AgentRunner。
   readonly #workers = new Map<string, Worker>();
+  // 已发布到共享 Inbox、尚未被 drain 的 lead 消息 id。
   readonly #queuedMessageIds = new Set<string>();
   readonly #spawnToolDefinition: ToolDefinition<SpawnTeammateInput>;
   readonly #sendToolDefinition: ToolDefinition<SendMessageInput>;
+  // 工厂必须在 start 前恰好配置一次，避免不同队友使用漂移的组装规则。
   #runnerFactory: TeammateRunnerFactory | undefined;
+  // Lead mailbox 新消息到达时请求 Runner.runEvents 的回调。
   #wakeup: (() => Promise<void>) | undefined;
+  // 串行化 spawn/send 对 worker 注册表的读改写。
   #registryTail: Promise<void> = Promise.resolve();
   #started = false;
   #closed = false;
 
+  // 校验 mailbox、Cron、Supervisor 和 Inbox 的共享关系；构造器不启动 worker。
   constructor(options: {
     readonly store: MailboxStore;
     readonly inbox: EventInbox;
@@ -152,21 +167,27 @@ export class TeammateRuntime {
     };
   }
 
+  // 暴露共享 Supervisor 供组合根验证资源所有权。
   get supervisor(): JobSupervisor {
     return this.#supervisor;
   }
+  // 暴露共享 Inbox 供组合根验证事件路径唯一。
   get eventInbox(): EventInbox {
     return this.#inbox;
   }
+  // 暴露被包装的 CronRuntime，事件泵方法在其上组合 mailbox ack。
   get cronRuntime(): CronRuntime {
     return this.#cronRuntime;
   }
+  // 暴露 MailboxStore 供组合一致性测试和受控查询。
   get mailboxStore(): MailboxStore {
     return this.#store;
   }
+  // pending 状态沿用共享 Cron/Supervisor 的受管任务状态。
   get hasPendingWork(): boolean {
     return this.#cronRuntime.hasPendingWork;
   }
+  // 主 Agent 注册 spawn 与 send 两个工具的稳定顺序快照。
   get toolDefinitions(): readonly (
     | ToolDefinition<SpawnTeammateInput>
     | ToolDefinition<SendMessageInput>
@@ -180,6 +201,7 @@ export class TeammateRuntime {
     return this.#sendToolDefinition;
   }
 
+  // 在 start 前一次性注入 Runner 工厂，防止运行中更换隔离与权限规则。
   configureRunnerFactory(factory: TeammateRunnerFactory): void {
     if (typeof factory !== "function") throw new TypeError("factory must be a function");
     if (this.#runnerFactory !== undefined || this.#started) {
@@ -188,11 +210,13 @@ export class TeammateRuntime {
     this.#runnerFactory = factory;
   }
 
+  // 绑定 Lead 消息唤醒回调；实际并发互斥由 AgentRunner 负责。
   bindWakeup(wakeup: () => Promise<void>): void {
     if (typeof wakeup !== "function") throw new TypeError("wakeup must be a function");
     this.#wakeup = wakeup;
   }
 
+  // 恢复 Lead 半开消息并发布待处理事件；重复启动幂等。
   async start(): Promise<void> {
     if (this.#closed) throw new TeammateClosedError("TeammateRuntime is closed");
     if (this.#runnerFactory === undefined) {
@@ -205,16 +229,19 @@ export class TeammateRuntime {
     this.#started = true;
   }
 
+  // 作为 RuntimeEventPump 的恢复屏障，确保 mailbox 已可消费。
   async ready(): Promise<void> {
     await this.start();
   }
 
+  // 返回指定队友当前不可变状态快照。
   state(name: string): Teammate {
     const worker = this.#workers.get(canonicalAgentName(name));
     if (worker === undefined) throw new TeammateNotFoundError(`Unknown teammate: ${name}`);
     return worker.teammate;
   }
 
+  // 原子注册队友、恢复其邮箱、发送首个 task，并启动受管 worker。
   async spawn(input: SpawnTeammateInput & { readonly sender: string }): Promise<Teammate> {
     // 注册与恢复 mailbox 后才启动 worker，防止队友在收件箱未就绪时丢失首条消息。
     this.#ensureAvailable();
@@ -259,6 +286,7 @@ export class TeammateRuntime {
     });
   }
 
+  // 向 Lead 或可接收消息的队友持久发送消息，必要时唤醒 Idle worker。
   async send(input: SendMessageInput & { readonly sender: string }): Promise<MailboxMessage> {
     this.#ensureAvailable();
     const sender = canonicalAgentName(input.sender);
@@ -292,16 +320,19 @@ export class TeammateRuntime {
     return message;
   }
 
+  // 从共享事件泵取走事件，并同步清除 mailbox 的“已入队”登记。
   drainEvents(limit?: number): readonly RuntimeEvent[] {
     const events = this.#cronRuntime.drainEvents(limit);
     this.#markMailboxEventsDequeued(events);
     return events;
   }
+  // 阻塞等待共享事件，并同步清除 mailbox 的“已入队”登记。
   async waitForEvents(limit?: number): Promise<readonly RuntimeEvent[]> {
     const events = await this.#cronRuntime.waitForEvents(limit);
     this.#markMailboxEventsDequeued(events);
     return events;
   }
+  // 组合 Cron 与 mailbox 的确认协议；mailbox ack 失败会重新发布同一事件。
   async acknowledgeEvents(events: readonly RuntimeEvent[]): Promise<void> {
     if (!Array.isArray(events) || !events.every((event) => isRuntimeEvent(event))) {
       throw new TypeError("events must contain RuntimeEvent values");
@@ -492,6 +523,7 @@ export class TeammateRuntime {
     }
   }
 
+  // 发布 Lead 当前所有 ready 消息，并在新增事件时请求运行独立事件回合。
   async #notifyLead(): Promise<void> {
     const published = await this.#publishLeadMessages();
     if (published && this.#wakeup !== undefined) await this.#wakeup();
@@ -510,13 +542,16 @@ export class TeammateRuntime {
       published = true;
     }
   }
+  // drain 后允许 ack 失败的同一消息重新发布到 Inbox。
   #markMailboxEventsDequeued(events: readonly RuntimeEvent[]): void {
     for (const event of events)
       if (isMailboxMessage(event)) this.#queuedMessageIds.delete(event.id);
   }
+  // 状态变化通过替换冻结快照完成，外部引用不会被就地修改。
   #setStatus(worker: Worker, status: TeammateStatus): void {
     worker.teammate = snapshot(worker.teammate.name, worker.teammate.role, status);
   }
+  // spawn/send 只能在已启动且未关闭的 runtime 中执行。
   #ensureAvailable(): void {
     if (this.#closed) throw new TeammateClosedError("TeammateRuntime is closed");
     if (!this.#started) throw new TeammateStateError("TeammateRuntime is not started");
@@ -537,14 +572,17 @@ export class TeammateRuntime {
   }
 }
 
+// 创建不可变的队友可观察状态。
 function snapshot(name: string, role: string, status: TeammateStatus): Teammate {
   return Object.freeze({ name, role, status });
 }
+// 校验并裁剪角色、初始任务和消息正文。
 function requireText(value: string, label: string): string {
   if (typeof value !== "string" || value.trim().length === 0)
     throw new Error(`${label} must not be empty`);
   return value.trim();
 }
+// 在共享事件队列中识别 mailbox 消息，避免对 Cron/后台事件执行邮箱 ack。
 function isMailboxMessage(value: RuntimeEvent): value is MailboxMessage {
   return value.toPayload().kind === "mailbox" && "id" in value;
 }

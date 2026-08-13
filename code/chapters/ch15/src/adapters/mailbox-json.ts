@@ -37,25 +37,35 @@ const LOCK_UPDATE_MS = 10_000;
 const PROCESS_LOCK_TAILS = new Map<string, Promise<void>>();
 
 interface MailboxPaths {
+  // realpath 后的工作区根，用于验证所有邮箱路径未逃逸。
   readonly workspace: string;
+  // .agent_tutorial 状态根。
   readonly stateRoot: string;
+  // 所有 Agent mailbox 的共同根目录。
   readonly root: string;
+  // 跨进程状态迁移锁路径。
   readonly lock: string;
 }
 
+// 每个 recipient 必须同时具备四个状态目录。
 type MailboxDirectories = Readonly<Record<MailboxState, string>>;
 
 export interface FileMailboxStoreOptions {
+  // 消息 UUID 与时钟可注入，测试可稳定覆盖排序、碰撞和恢复场景。
   readonly idGenerator?: () => string;
   readonly clock?: () => Date;
 }
 
 // 文件存储实现负责 ready/processing/done/quarantine 四态迁移；调用方只依赖 MailboxStore 协议。
 export class FileMailboxStore implements MailboxStore {
+  // 外部 workspace 输入；每次操作前重新解析真实路径。
   readonly #workspaceInput: string;
+  // 默认生成规范消息 UUID。
   readonly #idGenerator: () => string;
+  // 为消息提供创建时间，持久化前仍验证 Date 有效性。
   readonly #clock: () => Date;
 
+  // 校验工作区与注入边界；构造器不创建 mailbox 目录。
   constructor(workspace: string, options: FileMailboxStoreOptions = {}) {
     if (typeof workspace !== "string" || workspace.trim().length === 0) {
       throw new TypeError("workspace must be a non-empty string");
@@ -71,6 +81,7 @@ export class FileMailboxStore implements MailboxStore {
     this.#clock = options.clock ?? (() => new Date());
   }
 
+  // 创建不可变消息并原子写入接收者 ready 目录，全局 UUID 冲突会拒绝发送。
   async send(
     sender: string,
     recipient: string,
@@ -98,6 +109,7 @@ export class FileMailboxStore implements MailboxStore {
     );
   }
 
+  // 按 createdAtUtc/id 认领最早消息，并通过 rename 原子获得 processing 租约。
   async claim(recipient: string): Promise<MailboxMessage | undefined> {
     let normalized: string;
     try {
@@ -131,16 +143,20 @@ export class FileMailboxStore implements MailboxStore {
     );
   }
 
+  // 确认成功消费，将 processing 消息迁移到 done。
   async ack(message: MailboxMessage): Promise<boolean> {
     return await this.#transition(message, MailboxState.Done);
   }
+  // 放弃当前租约，将 processing 消息退回 ready 等待重试。
   async release(message: MailboxMessage): Promise<boolean> {
     return await this.#transition(message, MailboxState.Ready);
   }
+  // 隔离不可重试消息，保留原始负载供审计。
   async quarantine(message: MailboxMessage): Promise<boolean> {
     return await this.#transition(message, MailboxState.Quarantine);
   }
 
+  // 恢复崩溃遗留的半开 processing 租约，按稳定顺序全部退回 ready。
   async recoverProcessing(recipient: string): Promise<number> {
     let normalized: string;
     try {
@@ -174,6 +190,7 @@ export class FileMailboxStore implements MailboxStore {
     );
   }
 
+  // 以完整消息快照校验租约所有权，再原子迁移到目标状态目录。
   async #transition(message: MailboxMessage, destination: MailboxState): Promise<boolean> {
     assertMailboxMessage(message);
     return await this.#withLock(
@@ -212,6 +229,7 @@ export class FileMailboxStore implements MailboxStore {
     );
   }
 
+  // 调用可注入生成器后统一通过领域构造器验证并冻结消息。
   #newMessage(
     sender: string,
     recipient: string,
@@ -243,6 +261,7 @@ export class FileMailboxStore implements MailboxStore {
     }
   }
 
+  // 构造并验证状态根；非发送操作遇到不存在的根目录时返回 undefined。
   async #preparePaths(create: boolean): Promise<MailboxPaths | undefined> {
     // 状态路径固定在 workspace/.agent_tutorial/mailboxes 下，创建和读取都验证不能逃逸 workspace。
     try {
@@ -272,6 +291,7 @@ export class FileMailboxStore implements MailboxStore {
     }
   }
 
+  // 在进程内队列和跨进程文件锁内执行完整状态操作，并定义缺失根目录的返回语义。
   async #withLock<T>(
     create: boolean,
     operation: (paths: MailboxPaths) => Promise<T>,
@@ -302,6 +322,7 @@ export class FileMailboxStore implements MailboxStore {
     });
   }
 
+  // 为新 recipient 创建并验证完整四态目录集合。
   async #ensureMailbox(paths: MailboxPaths, recipient: string): Promise<MailboxDirectories> {
     // 每个收件人拥有四个状态目录，缺失时由发送方一次性创建。
     const root = join(paths.root, recipient);
@@ -317,6 +338,7 @@ export class FileMailboxStore implements MailboxStore {
     return Object.freeze(directories);
   }
 
+  // 读取既有 recipient 目录；任何状态目录缺失都按存储损坏处理。
   async #existingMailbox(
     paths: MailboxPaths,
     recipient: string,
@@ -337,6 +359,7 @@ export class FileMailboxStore implements MailboxStore {
     return Object.freeze(directories);
   }
 
+  // 扫描一个状态目录，验证文件名、payload 和 recipient，并隔离损坏记录。
   async #validEntries(
     paths: MailboxPaths,
     directories: MailboxDirectories,
@@ -370,6 +393,7 @@ export class FileMailboxStore implements MailboxStore {
     return candidates;
   }
 
+  // 严格读取单个消息文件，并验证文件名 UUID 与 payload 接收者一致。
   async #loadMessage(path: string, recipient: string): Promise<MailboxMessage> {
     // 文件名、payload 和 recipient 必须三方一致，任何错配都按存储错误处理。
     const name = path.split(/[\\/]/u).at(-1) ?? "";
@@ -402,6 +426,7 @@ export class FileMailboxStore implements MailboxStore {
     }
   }
 
+  // 将损坏或非法消息移到 quarantine，避免阻塞其他合法消息的 claim。
   async #moveInvalid(source: string, directories: MailboxDirectories): Promise<void> {
     const quarantine = directories[MailboxState.Quarantine];
     if (quarantine === undefined)
@@ -417,6 +442,7 @@ export class FileMailboxStore implements MailboxStore {
     await move(source, destination);
   }
 
+  // 跨所有 Agent 和状态目录查找同一 UUID，保证工作区级主键唯一。
   async #pathsForId(paths: MailboxPaths, id: string): Promise<readonly string[]> {
     // 跨 Agent 扫描所有 mailbox 和状态目录，保证同一个 UUID 在整个工作区唯一。
     const result: string[] = [];
@@ -444,6 +470,7 @@ export class FileMailboxStore implements MailboxStore {
     return result;
   }
 
+  // 状态迁移前确认除当前源文件外没有同 UUID 副本。
   async #assertUniqueId(paths: MailboxPaths, id: string, source: string): Promise<void> {
     // 发现同 ID 已存在于其他状态目录时显式失败，不能覆盖旧消息。
     const collisions = (await this.#pathsForId(paths, id)).filter((path) => path !== source);
@@ -453,6 +480,7 @@ export class FileMailboxStore implements MailboxStore {
   }
 }
 
+// Mailbox 的稳定消费顺序为创建时间优先、UUID 次序兜底。
 function compareMessages(
   left: { readonly message: MailboxMessage },
   right: { readonly message: MailboxMessage },
@@ -483,6 +511,7 @@ async function validateDirectory(workspace: string, path: string, label: string)
   }
 }
 
+// 验证 realpath 后的候选仍在 mailbox 根内。
 function isWithin(root: string, candidate: string): boolean {
   const value = relative(root, candidate);
   return value === "" || (!value.startsWith("..") && !value.includes(":"));
@@ -524,6 +553,7 @@ async function move(source: string, destination: string): Promise<void> {
   }
 }
 
+// 通过领域构造器复验调用方传入的消息快照。
 function assertMailboxMessage(value: MailboxMessage): void {
   try {
     createMailboxMessage(value);
