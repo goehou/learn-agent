@@ -24,9 +24,11 @@ import type { OpenAISettings } from "../config.js";
 //
 // 将 OpenAI SDK 的宽松响应收窄为 Agent Loop 使用的严格模型契约。
 export class OpenAIResponseError extends Error {
+  // 稳定错误名，表明失败发生在供应商响应收窄阶段。
   override readonly name = "OpenAIResponseError";
 }
 
+// 适配器实际依赖的最小 SDK 表面，允许测试替换网络客户端。
 export interface OpenAIClientBoundary {
   // 仅声明本适配器使用的 SDK 表面，使测试能注入无网络的客户端替身。
   readonly chat: {
@@ -36,10 +38,14 @@ export interface OpenAIClientBoundary {
   };
 }
 
+// 将已校验设置和 OpenAI SDK 封装为核心层的 ModelClient 实现。
 export class OpenAIChatModel implements ModelClient {
+  // 可替换的 Chat Completions 调用边界；生产默认使用真实 SDK。
   readonly #client: OpenAIClientBoundary;
+  // 配置中的默认模型；请求可按单次调用显式覆盖。
   readonly #model: string;
 
+  // 使用设置创建生产客户端，或接纳替身客户端以隔离网络测试。
   constructor(settings: OpenAISettings, client?: OpenAIClientBoundary) {
     // 默认创建真实 SDK；可选 client 保持外部请求边界可替换。
     this.#client =
@@ -54,6 +60,7 @@ export class OpenAIChatModel implements ModelClient {
     this.#model = settings.model;
   }
 
+  // 验证历史、转换请求、调用 SDK，再将宽松响应收窄为 ModelReply。
   async complete(request: ModelRequest): Promise<ModelReply> {
     // 在发给供应商前验证历史，不能把配对错误伪装为远端模型故障。
     validateToolPairing(request.messages);
@@ -79,6 +86,7 @@ export class OpenAIChatModel implements ModelClient {
   }
 }
 
+// SDK 响应完成收窄后的内部中间形状，尚未转换为核心层消息对象。
 interface NormalizedResponse {
   // SDK 原始响应经运行时收窄后的内部表示，避免 unknown 进入循环状态。
   readonly content: string | null;
@@ -87,6 +95,7 @@ interface NormalizedResponse {
   readonly usage?: TokenUsage;
 }
 
+// 从未知 SDK 返回值提取唯一 choice、消息、工具调用和用量，并在边界拒绝不支持协议。
 function normalizeResponse(response: unknown): NormalizedResponse {
   // SDK 返回值是外部不可信边界，逐层验证后才允许进入核心消息历史。
   if (typeof response !== "object" || response === null) {
@@ -141,6 +150,7 @@ function normalizeResponse(response: unknown): NormalizedResponse {
   });
 }
 
+// 把一项供应商函数调用转换为核心 ToolCall，保留精确错误上下文。
 function normalizeToolCall(call: unknown): ReturnType<typeof toolCall> {
   // Chat Completions 只接受 function 类型调用，并交由核心构造器验证三个字符串字段。
   if (typeof call !== "object" || call === null) {
@@ -163,6 +173,7 @@ function normalizeToolCall(call: unknown): ReturnType<typeof toolCall> {
   }
 }
 
+// 判断供应商结束原因是否属于核心层理解的受控集合。
 function isFinishReason(value: unknown): value is FinishReason {
   // 白名单同时保留 legacy 值，以便 normalizeResponse 给出明确的不支持错误。
   return (
@@ -174,6 +185,7 @@ function isFinishReason(value: unknown): value is FinishReason {
   );
 }
 
+// 将判别联合消息转换为 OpenAI SDK 消息形状，并保留工具调用关联 ID。
 function toOpenAIMessage(message: ChatMessage): ChatCompletionMessageParam {
   // 保留工具调用与 tool result 的关联字段，避免转换时破坏消息配对。
   switch (message.role) {
@@ -199,6 +211,7 @@ function toOpenAIMessage(message: ChatMessage): ChatCompletionMessageParam {
   }
 }
 
+// 将注册表生成的供应商无关 schema 转换为 SDK 所需的函数工具对象。
 function toOpenAITool(tool: ModelRequest["tools"][number]): ChatCompletionTool {
   // 工具 schema 由注册表单一来源生成，此处只转换为 SDK 请求形状。
   return {
@@ -211,6 +224,7 @@ function toOpenAITool(tool: ModelRequest["tools"][number]): ChatCompletionTool {
   };
 }
 
+// 提取并验证供应商 token 用量，确保后续预算策略接收到整数统计值。
 function normalizeUsage(usage: unknown): TokenUsage {
   // 用量字段参与后续章节的恢复策略，因此必须为非负整数而非宽松转换。
   if (typeof usage !== "object" || usage === null) {
@@ -226,6 +240,7 @@ function normalizeUsage(usage: unknown): TokenUsage {
   });
 }
 
+// 读取单个 snake_case 用量字段，拒绝负数、小数和缺失值。
 function readUsageCount(usage: object, field: string): number {
   const value = Reflect.get(usage, field);
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {

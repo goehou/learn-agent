@@ -14,14 +14,17 @@ import { toolError } from "./tools.js";
 //   3. 每轮把 assistant 消息和工具结果追加进 history
 //   4. 返回最终文本、完整历史和实际轮次
 // 本章不实现 Planner、Memory 或 Orchestrator，它们都是在这个循环之上叠加的能力。
+// Agent 运行期间的基础领域错误；调用方可与配置或 SDK 错误分开处理。
 export class AgentRunError extends Error {
   override readonly name: string = "AgentRunError";
 }
 
+// 在未得到最终回答前耗尽回合预算时抛出，避免无限模型/工具循环。
 export class AgentLimitError extends AgentRunError {
   override readonly name: string = "AgentLimitError";
 }
 
+// 模型因长度截断而无法安全视为最终回答时抛出。
 export class IncompleteModelReplyError extends AgentRunError {
   override readonly name: string = "IncompleteModelReplyError";
 }
@@ -32,11 +35,15 @@ export interface ToolAuthorizer {
   authorize(prepared: PreparedToolCall, context: ToolContext): Promise<ToolAuthorizationDecision>;
 }
 
+// 授权边界的明确结论；拒绝原因必须回填给模型以便其调整后续行动。
 export interface ToolAuthorizationDecision {
+  // 是否允许实际调用 handler，而不是仅允许模型提出调用请求。
   readonly allowed: boolean;
+  // 人类或策略拒绝的可解释文本；空原因会被视为无效授权响应。
   readonly reason: string;
 }
 
+// 单次 Agent 运行的可审计结果；与内部状态隔离的 history 用于验证消息配对。
 export interface RunResult {
   // 最终文本、可审计历史与实际使用回合数构成一次运行的完整结果。
   // history 是冻结副本，调用方不能修改 AgentRunner 内部状态。
@@ -45,6 +52,7 @@ export interface RunResult {
   readonly turns: number;
 }
 
+// 构造 AgentRunner 所需的依赖与边界；外部 SDK 和进程实现必须由组合根注入。
 export interface AgentRunnerOptions {
   // 核心循环只依赖抽象模型和工具；具体 SDK/进程在 bootstrap 层注入。
   readonly model: ModelClient;
@@ -56,16 +64,26 @@ export interface AgentRunnerOptions {
   readonly authorizer?: ToolAuthorizer;
 }
 
+// 单会话 Agent 状态机，按“模型回复 -> 工具回填 -> 再请求”推进到最终文本。
 export class AgentRunner {
+  // 已规范化的模型边界，循环不依赖具体供应商 SDK。
   readonly #model: ModelClient;
+  // 可变源注册表；每轮会从它生成不可变工具快照。
   readonly #tools: ToolRegistry;
+  // 每轮模型请求前置的稳定系统约束，不写入可变历史。
   readonly #systemPrompt: string;
+  // 规范化后的工作区根目录，所有工具调用共用该边界。
   readonly #workspace: string;
+  // 一次 run 最多允许的模型请求次数，而非工具调用次数。
   readonly #maxTurns: number;
+  // 注入工具上下文的调用主体标识。
   readonly #identity: string;
+  // 可选人工或策略授权边界；缺失时由库调用方承担信任决定。
   readonly #authorizer: ToolAuthorizer | undefined;
+  // 当前实例累计的用户、模型和工具事件；system prompt 始终按请求临时前置。
   readonly #history: ChatMessage[] = [];
 
+  // 验证长期配置并固定依赖；构造失败应早于任何模型请求或副作用。
   constructor(options: AgentRunnerOptions) {
     // 在实例创建时验证长期不变量，避免运行到中途才暴露无效配置。
     // 默认 20 轮上限防止模型无限循环；identity 默认 "user"。
@@ -90,12 +108,14 @@ export class AgentRunner {
     this.#authorizer = options.authorizer;
   }
 
+  // 返回冻结的历史副本，供审计读取而不允许外部改写实例状态。
   get history(): readonly ChatMessage[] {
     // 返回冻结副本，调用方不能修改内部消息历史。
     // 测试可用它验证消息配对；生产代码通常只读取 finalText。
     return Object.freeze([...this.#history]);
   }
 
+  // 执行一次用户请求，直到模型给出最终文本、触发不可恢复错误或耗尽回合预算。
   async run(prompt: string): Promise<RunResult> {
     // 历史仅保存用户与模型/工具事件；system prompt 在每次请求时单独前置。
     // system prompt 不进入 history，是因为它每轮都一样，无需重复保存。

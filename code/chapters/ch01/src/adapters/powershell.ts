@@ -9,16 +9,24 @@ import type { CommandResult, CommandRunner } from "../core/commands.js";
 //
 // PowerShell 进程边界：统一 UTF-8、超时和输出上限，避免单次命令耗尽运行资源。
 export interface PowerShellRunnerOptions {
+  // 可替换的进程可执行文件路径，主要用于测试或受控部署环境。
   readonly executable?: string;
+  // 每条命令的默认时间预算，调用时可单独覆盖。
   readonly timeoutMs?: number;
+  // stdout 与 stderr 合并后的字符上限，防止结果淹没 Agent 上下文。
   readonly outputLimit?: number;
 }
 
+// Node 子进程版 CommandRunner，负责将受控 PowerShell 执行结果统一收集。
 export class PowerShellRunner implements CommandRunner {
+  // 实际启动的 PowerShell 程序名或绝对路径。
   readonly #executable: string;
+  // 未显式覆盖时使用的单次命令超时。
   readonly #timeoutMs: number;
+  // 两个输出流共享的最大字符数。
   readonly #outputLimit: number;
 
+  // 初始化执行限制并在启动进程前拒绝无效预算。
   constructor(options: PowerShellRunnerOptions = {}) {
     // 运行限制可为测试替换；生产默认值限制单次命令时间和返回体积。
     this.#executable = options.executable === undefined ? "powershell.exe" : options.executable;
@@ -32,6 +40,7 @@ export class PowerShellRunner implements CommandRunner {
     }
   }
 
+  // 启动非交互 PowerShell，并把退出、超时和截断状态收敛为 CommandResult。
   run(command: string, cwd: string, timeoutOverrideMs?: number): Promise<CommandResult> {
     // 每次调用可缩短或延长预算，但仍要求正整数以保证计时器语义明确。
     if (command.length === 0) {

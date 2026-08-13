@@ -13,23 +13,29 @@ const requiredFields = ["OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL"] as 
 
 // 配置在网络请求前一次性校验，调用者可据此给出可操作的启动错误。
 export class ConfigurationError extends Error {
+  // 稳定错误名，CLI 通过它选择配置错误退出码。
   override readonly name = "ConfigurationError";
+  // 缺失、空白或不合法的环境变量名；冻结副本防止异常创建后被篡改。
   readonly missingFields: readonly string[];
 
+  // 以所有失效字段构造单个可操作错误，可选 cause 保留底层 URL/文件失败原因。
   constructor(missingFields: readonly string[], options?: ErrorOptions) {
     super(`Missing required settings: ${missingFields.join(", ")}`, options);
     this.missingFields = Object.freeze([...missingFields]);
   }
 }
 
+// 通过配置边界验证后的 OpenAI 连接信息，后续层不再处理空值或空白字符串。
 export interface OpenAISettings {
   // OpenAI SDK 所需的已校验、已去除首尾空白的连接配置。
   readonly baseUrl: string;
   readonly apiKey: string;
   readonly model: string;
+  // 第 11 章恢复策略使用的备用模型；第 1 章不强制要求它存在。
   readonly fallbackModel?: string;
 }
 
+// 从环境变量映射验证并规范化配置；requireFallback 仅在具备恢复能力的章节启用。
 export function settingsFromMapping(
   mapping: Readonly<Record<string, string | undefined>>,
   requireFallback = false,
@@ -77,6 +83,7 @@ export function settingsFromMapping(
   });
 }
 
+// 读取 dotenv 文件后复用同一映射校验路径，避免文件和进程环境出现两套规则。
 export function settingsFromEnvFile(path: string, requireFallback = false): OpenAISettings {
   // dotenv 只负责文件语法解析，字段完整性仍统一委托给 settingsFromMapping。
   return settingsFromMapping(parse(readFileSync(path)), requireFallback);

@@ -22,6 +22,7 @@ import type { PreparedToolCall, ToolContext } from "./core/tools.js";
 //
 // 终端是副作用工具的人工授权边界；没有交互终端时必须拒绝执行。
 class TerminalAuthorizer implements ToolAuthorizer {
+  // 在真实终端中请求本次副作用调用的明确批准；任何交互异常均拒绝执行。
   async authorize(
     prepared: PreparedToolCall,
     _context: ToolContext,
@@ -55,7 +56,9 @@ class TerminalAuthorizer implements ToolAuthorizer {
 
 // CLI 解析完成后的最小启动参数；章节与用户请求缺一不可。
 interface RunArguments {
+  // 解析后的目标章节，随后必须映射到实际迁移的 profile。
   readonly chapter: number;
+  // 传入 AgentRunner.run 的原始用户任务文本。
   readonly prompt: string;
 }
 

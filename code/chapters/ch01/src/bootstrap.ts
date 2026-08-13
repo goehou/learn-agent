@@ -31,6 +31,7 @@ export interface BuildDependencies {
 }
 
 // 组合根：把第 1 章允许的工具、模型和运行上下文装配为单一循环实例。
+// profile 必须属于本章节；dependencies 只承载基础设施而不承载业务流程。
 export function buildAgent(profile: ChapterProfile, dependencies: BuildDependencies): AgentRunner {
   // 固定章节入口拒绝更高版本 profile，防止能力从后续章节意外泄漏。
   if (profile.chapter !== 1) {

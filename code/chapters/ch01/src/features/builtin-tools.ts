@@ -14,6 +14,7 @@ import { ToolRegistry, toolError, toolSuccess } from "../core/tools.js";
 const shellInputSchema = z.strictObject({ command: z.string().min(1) });
 
 // 第 1 章仅暴露受 schema 约束的 PowerShell 工具，工作目录来自受控上下文。
+// commandRunner 是唯一进程边界，工具定义本身不直接启动子进程。
 export function createShellTool(commandRunner: CommandRunner): ToolDefinition<{ command: string }> {
   return {
     name: "shell",
@@ -47,6 +48,7 @@ export function createShellTool(commandRunner: CommandRunner): ToolDefinition<{ 
   };
 }
 
+// 创建本章完整工具注册表；新增工具必须在这里集中注册，避免组合根遗漏能力。
 export function createChapterOneTools(commandRunner: CommandRunner): ToolRegistry {
   // 章节工具集中注册全部可用副作用，供组装层一次性注入。
   const registry = new ToolRegistry();
