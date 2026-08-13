@@ -19,6 +19,7 @@ const listTasksSchema = z.strictObject({});
 const completeTaskSchema = z.strictObject({ task_id: uuidSchema, claim_token: uuidSchema });
 
 export class TaskClaimError extends TaskError {
+  // 表示调用方提交的 owner/token 与当前租约不匹配，可稳定映射为工具错误码。
   constructor(message: string, code = "task_claim_mismatch") {
     super(code, message);
     this.name = "TaskClaimError";
@@ -26,6 +27,7 @@ export class TaskClaimError extends TaskError {
 }
 
 export class TaskLeaseExpiredError extends TaskClaimError {
+  // 单独区分“曾经有效但已过期”，便于模型重新认领而不是重复完成。
   constructor(message: string) {
     super(message, "task_lease_expired");
     this.name = "TaskLeaseExpiredError";
@@ -40,6 +42,7 @@ export interface TaskClaim {
 }
 
 export interface LeasedTaskStore {
+  // 存储层负责 DAG、租约与 token 的原子语义，工具层不直接拼接持久化操作。
   createTask(input: CreateTaskInput): Promise<Task>;
   getTask(taskId: string): Promise<Task>;
   listTasks(): Promise<readonly Task[]>;
@@ -49,6 +52,7 @@ export interface LeasedTaskStore {
 }
 
 export interface TaskClaimService {
+  // service 将执行身份绑定到存储 owner，阻止模型通过工具参数伪造其他 Agent。
   readonly store: LeasedTaskStore;
   claimTask(taskId: string, context: ToolContext): Promise<TaskClaim>;
   claimNext(owner: string): Promise<TaskClaim | undefined>;
@@ -60,18 +64,22 @@ class DirectTaskClaimService implements TaskClaimService {
   readonly #store: LeasedTaskStore;
 
   constructor(store: LeasedTaskStore) {
+    // service 不复制状态，只持有组合根提供的唯一 store 引用。
     this.#store = store;
   }
 
   get store(): LeasedTaskStore {
+    // 暴露引用身份供 WorkStealingRuntime 拒绝错误配对的 service。
     return this.#store;
   }
 
   async claimTask(taskId: string, context: ToolContext): Promise<TaskClaim> {
+    // 手动工具认领的 owner 固定取自 ToolContext.identity。
     return await this.#store.claimTask(taskId, context.identity);
   }
 
   async claimNext(owner: string): Promise<TaskClaim | undefined> {
+    // 自动扫描不是模型工具调用，owner 由调用方直接传入；它不经过 ToolContext，模型也不能伪造。
     return await this.#store.claimNext(owner);
   }
 
@@ -80,20 +88,24 @@ class DirectTaskClaimService implements TaskClaimService {
     claimToken: string,
     context: ToolContext,
   ): Promise<TaskCompletion> {
+    // 完成同样从上下文绑定 owner，并要求模型回传当前 claim token。
     return await this.#store.completeTask(taskId, context.identity, claimToken);
   }
 }
 
 export interface WorkStealingSleeper {
+  // wakeup 可由新消息、协议事件或关闭流程中断，避免 worker 必须等满轮询周期。
   sleep(seconds: number, wakeup: AbortSignal): Promise<void>;
 }
 
+// Lead 使用完整五工具元组；Teammate 通过切片移除 create_task。
 type LeasedToolDefinitions = ReturnType<typeof leasedTaskToolDefinitions>;
 type TeammateLeasedToolDefinitions = readonly LeasedToolDefinitions[number][];
 
 // AsyncioWorkStealingSleeper 默认 sleeper 使用 timer + abort 监听，避免空闲轮询无法被关闭流程中断。
 export class AsyncioWorkStealingSleeper implements WorkStealingSleeper {
   async sleep(seconds: number, wakeup: AbortSignal): Promise<void> {
+    // 已触发的 wakeup 直接返回，避免遗漏绑定监听前发生的唤醒。
     if (wakeup.aborted) return;
     await new Promise<void>((resolve) => {
       // 同时监听 timer 和 abort：新消息到达时提前结束等待，避免 idle worker 卡满 5 秒。
@@ -130,6 +142,7 @@ export class WorkStealingRuntime {
     readonly pollIntervalSeconds?: number;
     readonly maxIdlePolls?: number;
   }) {
+    // 构造时冻结 store/service/轮询策略和工具快照，运行中不允许热切换认领语义。
     if (!isLeasedTaskStore(options.store))
       throw new TypeError("store must implement LeasedTaskStore");
     const claimService =
@@ -166,30 +179,37 @@ export class WorkStealingRuntime {
   }
 
   get store(): LeasedTaskStore {
+    // 暴露同一实例供 bootstrap 校验 Lead、Subagent 与 Teammate 没有分叉存储。
     return this.#store;
   }
 
   get claimService(): TaskClaimService {
+    // 工具注册和自动认领必须复用同一身份绑定服务。
     return this.#claimService;
   }
 
   get maxIdlePolls(): number {
+    // TeammateRuntime 用该上限决定连续空轮询何时结束 worker。
     return this.#maxIdlePolls;
   }
 
   get leadToolDefinitions(): LeasedToolDefinitions {
+    // Lead 可创建、查询、认领和完成任务。
     return this.#leadToolDefinitions;
   }
 
   get teammateToolDefinitions(): TeammateLeasedToolDefinitions {
+    // 持续队友只能处理既有任务，不能在空闲循环中扩张任务图。
     return this.#teammateToolDefinitions;
   }
 
   async claimNext(owner: string): Promise<TaskClaim | undefined> {
+    // 自动认领 owner 来自 worker 身份，不经过模型工具输入。
     return await this.#claimService.claimNext(owner);
   }
 
   async waitForPoll(wakeup: AbortSignal): Promise<void> {
+    // 轮询等待由 sleeper 抽象，测试可用确定性实现而无需真实等待。
     await this.#sleeper.sleep(this.#pollIntervalSeconds, wakeup);
   }
 
@@ -276,6 +296,7 @@ export function leasedTaskToolDefinitions(
     effect: "write",
     handler: async (input, context) => {
       try {
+        // claimService 从 ToolContext.identity 推导 owner，工具参数没有 owner 字段。
         return toolSuccess(
           JSON.stringify(claimPayload(await claimService.claimTask(input.task_id, context))),
         );
@@ -291,6 +312,7 @@ export function leasedTaskToolDefinitions(
     effect: "write",
     handler: async (input, context) => {
       try {
+        // owner 仍由 context.identity 注入，claim_token 是模型唯一需要回传的权限证明。
         const result = await claimService.completeTask(input.task_id, input.claim_token, context);
         return toolSuccess(
           JSON.stringify({
@@ -334,6 +356,7 @@ export function registerTeammateLeasedTaskTools(
 }
 
 export function canonicalClaimToken(value: string): string {
+  // token 使用 canonical UUID，拒绝大小写或格式变体形成多个文本身份。
   try {
     return canonicalTaskId(value);
   } catch {
@@ -342,6 +365,7 @@ export function canonicalClaimToken(value: string): string {
 }
 
 function isLeasedTaskStore(value: unknown): value is LeasedTaskStore {
+  // 组合根只依赖最小结构契约，避免把具体 SQLite 类泄漏到领域层。
   return (
     typeof value === "object" &&
     value !== null &&
@@ -355,6 +379,7 @@ function isLeasedTaskStore(value: unknown): value is LeasedTaskStore {
 }
 
 function isTaskClaimService(value: unknown): value is TaskClaimService {
+  // 除方法形状外还校验 store，随后构造器继续要求实例引用完全相同。
   return (
     typeof value === "object" &&
     value !== null &&
@@ -366,6 +391,7 @@ function isTaskClaimService(value: unknown): value is TaskClaimService {
 }
 
 function taskPayload(task: Task): Readonly<Record<string, unknown>> {
+  // 内存 Task 使用 blockedBy，工具结果统一映射为 wire format 的 blocked_by。
   return {
     blocked_by: [...task.blockedBy],
     description: task.description,
@@ -377,6 +403,7 @@ function taskPayload(task: Task): Readonly<Record<string, unknown>> {
 }
 
 function claimPayload(claim: TaskClaim): Readonly<Record<string, unknown>> {
+  // TaskClaim 内部字段是 camelCase，序列化给模型时统一换成 claim_token 与 lease_expires_at_utc。
   return {
     claim_token: claim.claimToken,
     lease_expires_at_utc: claim.leaseExpiresAtUtc.toISOString(),
