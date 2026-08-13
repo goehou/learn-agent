@@ -19,15 +19,23 @@ const SYSTEM_PROMPT =
 export interface BuildDependencies {
   // 外部边界均可注入，离线测试无需启动真实进程或网络客户端。
   readonly model: ModelClient;
+  // 命令、文件和 Hook 上下文共享的工作区根。
   readonly workspace: string;
+  // 可替换命令执行边界。
   readonly commandRunner?: CommandRunner;
+  // 可替换文件系统边界，同时用于写路径安全校验。
   readonly fileSystem?: WorkspaceFileSystem;
+  // P03+ 的 ask 决策收敛边界。
   readonly approvalProvider?: ApprovalProvider;
+  // P03+ 的最终决策审计边界。
   readonly auditSink?: AuditSink;
+  // P04 可选 Hook 队列；早期 profile 明确拒绝它。
   readonly hooks?: HookRegistry;
+  // 可选模型回合上限。
   readonly maxTurns?: number;
 }
 
+// 根据固定 profile 组合累计能力，拒绝 profile 伪造与 Hook 越级注入。
 export function buildAgent(profile: ChapterProfile, dependencies: BuildDependencies): AgentRunner {
   // 先验证 profile 与章节匹配，再按能力选择工具集与权限策略，最后组装 AgentRunner。
   // 禁止伪造同章节号但能力不同的 profile，保持教学快照固定。

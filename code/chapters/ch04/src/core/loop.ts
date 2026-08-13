@@ -23,28 +23,41 @@ export class IncompleteModelReplyError extends AgentRunError {
 }
 
 export interface RunResult {
+  // 模型停止时提供的最终可交付文本。
   readonly finalText: string;
+  // 与内部状态隔离的完整消息历史。
   readonly history: readonly ChatMessage[];
+  // 本次运行实际请求模型的次数。
   readonly turns: number;
 }
 
 export interface AgentRunnerOptions {
+  // 供应商无关的模型边界。
   readonly model: ModelClient;
+  // 每轮请求时会生成快照的工具注册表。
   readonly tools: ToolRegistry;
+  // 每轮临时前置而不写入 history 的系统提示。
   readonly systemPrompt: string;
+  // 工具调用可访问的工作区根。
   readonly workspace: string;
+  // 可选模型请求上限。
   readonly maxTurns?: number;
+  // 注入工具上下文的主体标识。
   readonly identity?: string;
+  // P03 引入的执行前权限策略。
   readonly permissionPolicy?: PermissionPolicy;
+  // P04 引入的生命周期回调注册表；省略时使用无回调注册表。
   readonly hooks?: HookRegistry;
 }
 
+// 一次工具调用在本轮的回填结果和是否阻止后续调用的内部状态。
 interface ToolExecution {
   readonly result: ToolResult;
   readonly additionalContext: readonly ChatMessage[];
   readonly preventContinuation: boolean;
 }
 
+// 单会话状态机；在模型、权限和工具边界插入受限 Hook 并保持消息配对。
 export class AgentRunner {
   // 构造函数做前置校验，不允许非法 maxTurns 或空 identity/systemPrompt。
   readonly #model: ModelClient;
@@ -57,6 +70,7 @@ export class AgentRunner {
   readonly #hooks: HookRegistry;
   readonly #history: ChatMessage[] = [];
 
+  // 验证长期配置并固定依赖；Hook 存在时为兼容路径提供权限策略实例。
   constructor(options: AgentRunnerOptions) {
     const maxTurns = options.maxTurns === undefined ? 20 : options.maxTurns;
     if (!Number.isInteger(maxTurns) || maxTurns <= 0) {
@@ -83,10 +97,12 @@ export class AgentRunner {
     this.#hooks = options.hooks === undefined ? new HookRegistry() : options.hooks;
   }
 
+  // 返回冻结历史副本，外部无法篡改后续模型请求。
   get history(): readonly ChatMessage[] {
     return Object.freeze([...this.#history]);
   }
 
+  // 执行用户请求，允许 Hook 受限地追加上下文、改写工具输入/输出或控制一次续写。
   async run(prompt: string): Promise<RunResult> {
     // 先触发 UserPromptSubmit Hook，然后将 prompt 与 additionalContext 写入历史。
     const submitted = userMessage(prompt);
