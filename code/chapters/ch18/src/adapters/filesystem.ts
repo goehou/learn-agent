@@ -1,3 +1,4 @@
+// Node 文件系统适配器：把 core 的 WorkspaceFileSystem 契约落到本机路径；所有路径先做词法与 realpath 边界校验，再执行读、写、编辑和 glob。
 import {
   lstat,
   mkdir,

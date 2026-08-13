@@ -1,3 +1,4 @@
+// TODO 会话计划：用完整快照工具 todo_write 管理模型可见任务列表，并在计划长期未更新时向下一轮模型请求注入提醒。
 import { z } from "zod";
 
 import type { ChatMessage } from "../core/messages.js";

@@ -1,3 +1,4 @@
+// 历史压缩与 artifact 落盘：按字节预算对超长会话做摘要、微压缩或 snip，同时安全保留完整 transcript。
 import { randomUUID } from "node:crypto";
 import { link, lstat, mkdir, open, realpath, rm } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";

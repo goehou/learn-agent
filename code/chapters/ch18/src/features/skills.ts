@@ -1,3 +1,4 @@
+// Skill 管理：扫描技能目录、解析 frontmatter 并做路径白名单校验，为模型提供 load_skill 的 catalog 与内容读取。
 import {
   closeSync,
   existsSync,

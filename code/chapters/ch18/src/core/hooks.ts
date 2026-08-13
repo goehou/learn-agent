@@ -1,3 +1,4 @@
+// Hook 生命周期：把用户提交、工具调用前后和停止事件归一为 HookContext/HookResult，并合并多个订阅者的权限建议。
 import type { ChatMessage } from "./messages.js";
 import { isChatMessage, systemMessage, userMessage } from "./messages.js";
 import type { PermissionBehavior } from "./permissions.js";

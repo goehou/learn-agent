@@ -36,6 +36,8 @@ import { WorktreeRuntime } from "./features/worktrees.js";
 // CLI 是真实运行入口：负责参数解析、环境读取、模型与持久化资源装配，以及用户审批/审计边界。
 class TerminalApprovalProvider implements ApprovalProvider {
   async decide(request: PermissionRequest): Promise<PermissionDecision> {
+    // CLI 只负责把结构化审批请求呈现给操作者；非交互环境默认拒绝，
+    // 不把缺少人工确认误当成允许执行。
     const definition = request.prepared.definition;
     const proposed = request.proposedDecision;
     if (definition === undefined || proposed === undefined) {
@@ -71,6 +73,7 @@ class TerminalApprovalProvider implements ApprovalProvider {
 
 class TerminalAuditSink implements AuditSink {
   async record(request: PermissionRequest, decision: PermissionDecision): Promise<void> {
+    // 审计记录使用最终决策的稳定字段，确保 allow/deny/ask 的来源和理由可追溯。
     const definition = request.prepared.definition;
     if (definition === undefined) {
       throw new Error("audit request is incomplete");
@@ -87,6 +90,8 @@ interface RunArguments {
 }
 
 function parseRunArguments(argv: readonly string[], fixedChapter?: number): RunArguments {
+  // 统一解析 `run` 与固定章节脚本的参数，并拒绝未知或缺失参数，
+  // 避免 CLI 在错误 profile 或空 prompt 下启动运行时。
   const args = fixedChapter === undefined ? argv : ["--chapter", String(fixedChapter), ...argv];
   let chapter: number | undefined;
   let prompt: string | undefined;
@@ -120,6 +125,9 @@ function parseRunArguments(argv: readonly string[], fixedChapter?: number): RunA
 }
 
 async function execute(profile: ChapterProfile, prompt: string): Promise<number> {
+  // 组合根按 profile 创建能力及其共享依赖；资源释放集中在 finally 等价的收尾段，
+  // 即使 AgentRunner 构造或运行失败，也会关闭已创建的 supervisor、runtime 和 model。
+  // 先构造唯一 SQLite store，再派生 WorktreeRuntime 与 WorkStealingRuntime。
   const workspace = resolve(process.cwd());
   const envPath = resolve(workspace, ".env");
   const requiresFallback = profile.capabilities.has("recovery");

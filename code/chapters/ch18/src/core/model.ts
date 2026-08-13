@@ -1,3 +1,4 @@
+// 模型适配契约：供应商响应统一归一为 ModelReply，并把限流、过载、超长等错误映射成可恢复的 ModelAPIError 子类型。
 import type { AssistantMessage, ChatMessage } from "./messages.js";
 
 // 供应商 adapter 必须归一为这些结束状态，循环据此处理不可完成或被过滤的回复。

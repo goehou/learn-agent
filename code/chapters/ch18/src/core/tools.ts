@@ -26,6 +26,7 @@ export interface ToolContext {
 }
 
 export interface ToolResult {
+  // content 回填模型；失败必须额外携带稳定 errorCode。
   readonly content: string;
   readonly isError: boolean;
   readonly errorCode?: string;
@@ -64,6 +65,7 @@ export function copyToolResult(result: ToolResult): ToolResult {
 }
 
 export interface ToolDefinition<Input> {
+  // handler 接收 provider 已解析的上下文，不自行决定工作目录或身份。
   readonly name: string;
   readonly description: string;
   readonly inputSchema: z.ZodType<Input>;
@@ -83,6 +85,7 @@ export interface StoredToolDefinition {
 }
 
 export interface PreparedToolCall {
+  // 成功时具有 definition/arguments，失败时具有可直接回填的 error。
   readonly call: ToolCall;
   readonly definition?: StoredToolDefinition;
   readonly arguments?: unknown;
@@ -94,6 +97,7 @@ export function freezePreparedToolCall(
   definition: StoredToolDefinition,
   argumentsValue: unknown,
 ): PreparedToolCall {
+  // Hook 改写后重建冻结快照，审批和执行始终读取同一份参数。
   return Object.freeze({
     call: toolCall(call.id, call.name, call.arguments),
     definition,
@@ -107,11 +111,13 @@ export class ToolRegistry {
   readonly #mutable: boolean;
 
   constructor(definitions: ReadonlyMap<string, StoredToolDefinition> = new Map(), mutable = true) {
+    // 复制 Map 隔离调用方修改；snapshot 通过 mutable=false 禁止注册。
     this.#definitions = new Map(definitions);
     this.#mutable = mutable;
   }
 
   get names(): readonly string[] {
+    // 名称快照按注册顺序返回并冻结。
     return Object.freeze([...this.#definitions.keys()]);
   }
 
@@ -211,6 +217,7 @@ export class ToolRegistry {
   }
 
   async invoke(prepared: PreparedToolCall, context: ToolContext): Promise<ToolResult> {
+    // provider 解析发生在 AgentRunner 调用 invoke 之前。
     if (prepared.error !== undefined) {
       return prepared.error;
     }

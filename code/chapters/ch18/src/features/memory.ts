@@ -1,3 +1,4 @@
+// 持久记忆：用带文件锁的 manifest 与 markdown 记录管理跨会话记忆，并通过模型选择、提取、合并完成生命周期。
 import { randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readFile, realpath, rename, rm, stat } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";

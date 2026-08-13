@@ -1,3 +1,4 @@
+// 模型调用恢复：为限流、过载、超长和临时错误提供重试/退避/继续预算，并以明确错误终止取消、超时与重试耗尽。
 import { userMessage, validateToolPairing } from "../core/messages.js";
 import type { ChatMessage } from "../core/messages.js";
 import {

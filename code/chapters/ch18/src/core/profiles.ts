@@ -25,37 +25,46 @@ export type Capability =
   // task_dag_sqlite 与 work_stealing 表示带租约的 SQLite 任务图与去中心化认领。
   | "task_dag_sqlite"
   | "work_stealing"
+  // worktree 启用受管 Git 工作树与动态 ToolContextProvider。
   | "worktree";
 
 export interface ChapterProfile {
+  // chapter 与能力集共同构成 profileForChapter 返回的固定单例。
   readonly chapter: number;
   readonly capabilities: ReadonlySet<Capability>;
 }
 
 class CapabilitySet implements ReadonlySet<Capability> {
+  // 包装原生 Set，只暴露 ReadonlySet 契约。
   readonly #values: Set<Capability>;
 
   constructor(values: readonly Capability[]) {
+    // 复制输入，外部修改不会改变已构建 profile。
     this.#values = new Set(values);
   }
 
   get size(): number {
+    // 返回去重后的能力数量。
     return this.#values.size;
   }
 
   has(value: Capability): boolean {
+    // 组合根通过能力位选择依赖，不散落章节号判断。
     return this.#values.has(value);
   }
 
   entries(): SetIterator<[Capability, Capability]> {
+    // 迭代行为与原生 Set 一致。
     return this.#values.entries();
   }
 
   keys(): SetIterator<Capability> {
+    // 不暴露内部可变 Set。
     return this.#values.keys();
   }
 
   values(): SetIterator<Capability> {
+    // 保留能力构建顺序，便于下一章累计展开。
     return this.#values.values();
   }
 
@@ -63,12 +72,14 @@ class CapabilitySet implements ReadonlySet<Capability> {
     callbackfn: (value: Capability, value2: Capability, set: ReadonlySet<Capability>) => void,
     thisArg?: unknown,
   ): void {
+    // 第三个参数传只读包装本身。
     this.#values.forEach((value) => {
       callbackfn.call(thisArg, value, value, this);
     });
   }
 
   [Symbol.iterator](): SetIterator<Capability> {
+    // 支持扩展运算符构建累计能力集。
     return this.values();
   }
 }

@@ -1,3 +1,4 @@
+// 运行配置：从 .env 或显式映射读取 OpenAI 参数，并在创建网络客户端前集中完成缺失字段、URL 协议和 fallback 校验。
 import { readFileSync } from "node:fs";
 
 import { parse } from "dotenv";

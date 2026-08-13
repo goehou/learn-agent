@@ -1,3 +1,4 @@
+// PowerShell 命令适配器：封装进程启动、UTF-8 输出、超时与截断，把外部命令收敛成 CommandRunner 契约。
 import { spawn } from "node:child_process";
 import type { CommandResult, CommandRunner } from "../core/commands.js";
 

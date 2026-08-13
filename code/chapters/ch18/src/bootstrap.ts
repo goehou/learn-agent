@@ -45,6 +45,7 @@ const EMPTY_SKILLS_CATALOG = "(No workspace Skills are currently available.)";
 
 // P17/P18 由组装根注入共享的 claim service 与 worktree 运行时，使 Lead、子代理和队友使用同一认领路径。
 export interface BuildDependencies {
+  // worktreeRuntime 必须与 workStealingRuntime 共享 store，并同时作为 claim service/provider。
   readonly model: ModelClient;
   readonly workspace: string;
   readonly commandRunner?: CommandRunner;
@@ -65,6 +66,7 @@ export interface BuildDependencies {
 }
 
 export function buildAgent(profile: ChapterProfile, dependencies: BuildDependencies): AgentRunner {
+  // 先验证依赖矩阵，避免不同 store、workspace 或 provider 组合进入运行期。
   if (profileForChapter(profile.chapter) !== profile) {
     throw new Error("profile must be a fixed chapter profile");
   }

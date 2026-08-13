@@ -1,3 +1,4 @@
+// 章节基础工具：shell 与文件工具由 ToolRegistry 统一注册；background 参数只影响 shell 调度，文件工具保持同步行为。
 import { z } from "zod";
 
 import type { CommandResult, CommandRunner } from "../core/commands.js";
