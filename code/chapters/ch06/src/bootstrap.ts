@@ -26,12 +26,19 @@ const TODO_SYSTEM_PROMPT =
 export interface BuildDependencies {
   // 外部边界均可注入，离线测试无需启动真实进程或网络客户端。
   readonly model: ModelClient;
+  // 单次父子运行共用的工作区根目录，子代理只能在该边界内操作文件。
   readonly workspace: string;
+  // 可替换真实 PowerShell，用于测试或宿主特定的命令边界。
   readonly commandRunner?: CommandRunner;
+  // 可替换 Node 文件系统，实现可控副作用和工作区校验。
   readonly fileSystem?: WorkspaceFileSystem;
+  // 对 ask 决策提供人或外部系统的批准结果。
   readonly approvalProvider?: ApprovalProvider;
+  // 收集父、子 Agent 均会经过的权限决策审计记录。
   readonly auditSink?: AuditSink;
+  // P04 及以后由父子运行器共享的生命周期扩展。
   readonly hooks?: HookRegistry;
+  // 父循环的调用方上限；子代理另有不得超过 30 的独立上限。
   readonly maxTurns?: number;
 }
 
@@ -83,7 +90,9 @@ export function buildAgent(profile: ChapterProfile, dependencies: BuildDependenc
 }
 
 interface StandardTools {
+  // 每次组合创建一个独立 registry；子代理工厂借此避免与父 registry 互相污染。
   readonly tools: ToolRegistry;
+  // P05 以后同 registry 对应的会话级计划观察器。
   readonly todoTracker?: TodoTracker;
 }
 

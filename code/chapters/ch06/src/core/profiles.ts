@@ -102,6 +102,7 @@ export const P05: ChapterProfile = Object.freeze({
 });
 
 export const P06: ChapterProfile = Object.freeze({
+  // P06 在 P05 的计划能力上加入受策略约束的单次子任务委派。
   chapter: 6,
   capabilities: new CapabilitySet([
     "loop",
