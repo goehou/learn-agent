@@ -98,7 +98,7 @@ code/
 
 ```powershell
 Set-Location '.\code'
-rtk npm ci
+npm ci
 ```
 
 真实模型运行需要配置 `.env`。先复制模板，再填写四个变量：
@@ -123,14 +123,14 @@ OPENAI_FALLBACK_MODEL=
 每章都有固定 npm script。下面从第 1 章和第 20 章举例：
 
 ```powershell
-rtk npm run ch01 -- --prompt "列出当前目录"
-rtk npm run ch20 -- --prompt "验证完整 Harness 的动态上下文、MCP 边界和资源关闭"
+npm run ch01 -- --prompt "列出当前目录"
+npm run ch20 -- --prompt "验证完整 Harness 的动态上下文、MCP 边界和资源关闭"
 ```
 
 也可以通过统一入口选择章节：
 
 ```powershell
-rtk npm run agent-tutorial -- run --chapter 12 --prompt "建立 schema、endpoints、tests 和 docs 的任务依赖"
+npm run agent-tutorial -- run --chapter 12 --prompt "建立 schema、endpoints、tests 和 docs 的任务依赖"
 ```
 
 ### 3. 验证实现
@@ -138,14 +138,14 @@ rtk npm run agent-tutorial -- run --chapter 12 --prompt "建立 schema、endpoin
 从 `code/` 执行：
 
 ```powershell
-rtk npm run typecheck
-rtk npm run test:ch01
-rtk npm run test:ch20
-rtk npm test
-rtk npm run lint
-rtk npm run format:check
-rtk npm run build
-rtk npm run verify:snapshot-drift
+npm run typecheck
+npm run test:ch01
+npm run test:ch20
+npm test
+npm run lint
+npm run format:check
+npm run build
+npm run verify:snapshot-drift
 ```
 
 逐章 review 至少运行对应的 `test:chNN` 和 `typecheck`；共享运行时变化后再运行全量测试、lint、format、build 与快照漂移检查。只有直接验证通过，才能把章节标记为“通过”。
