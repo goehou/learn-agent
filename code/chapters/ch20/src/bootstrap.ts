@@ -75,6 +75,7 @@ export interface BuildDependencies {
 // 这里只汇总可同步读取的事实：后台是否仍有工作、MCP 当前连接哪些 alias。
 // 状态栏不替代 EventInbox：事件仍在请求前消费，状态只帮助模型判断下一轮是否等待。
 function fullHarnessRuntimeStatus(dependencies: BuildDependencies): JsonObject {
+  // statusProvider 只读取当前快照，不触发连接、任务或事件副作用；动态 Prompt 的职责是观察而非调度。
   const pendingWork =
     dependencies.backgroundSupervisor?.hasPendingWork === true ||
     dependencies.cronRuntime?.hasPendingWork === true ||
@@ -89,6 +90,8 @@ function fullHarnessRuntimeStatus(dependencies: BuildDependencies): JsonObject {
 
 // 按固定 profile 组合累计能力，避免任意依赖组合绕过章节契约。
 export function buildAgent(profile: ChapterProfile, dependencies: BuildDependencies): AgentRunner {
+  // Full Harness 的构造顺序固定为“先验证依赖，再注册工具，最后交给 Runner 托管资源”；
+  // 这样任何失败都发生在明确的组合边界内，不会留下半装配的 Agent。
   validateBuildDependencies(profile, dependencies);
   const commandRunner =
     dependencies.commandRunner === undefined ? new PowerShellRunner() : dependencies.commandRunner;
@@ -275,6 +278,7 @@ export function buildAgent(profile: ChapterProfile, dependencies: BuildDependenc
         context: Object.freeze({ chapter: profile.chapter, identity }),
         ...(profile.capabilities.has("full_harness")
           ? {
+              // P20 的状态段参与 DynamicPromptRenderer 缓存键，因此连接或待处理工作变化会让下一次请求重渲染。
               // P20 使用 statusProvider，让 MCP 连接与后台状态在当前请求重新读取，并保持在提示尾部。
               statusProvider: () => fullHarnessRuntimeStatus(dependencies),
             }
@@ -324,6 +328,8 @@ export function buildAgent(profile: ChapterProfile, dependencies: BuildDependenc
 
 // 组装前的统一契约校验：能力声明和运行时依赖必须精确匹配，避免漏配或混用。
 function validateBuildDependencies(profile: ChapterProfile, dependencies: BuildDependencies): void {
+  // 这里的引用身份检查是 Full Harness 的装配门禁：同一 store、EventInbox、Cron、队友和 MCP 资源
+  // 必须由同一组合根创建，避免“功能都存在但各自持有状态”的假完整实现。
   if (profileForChapter(profile.chapter) !== profile) {
     throw new Error("profile must be a fixed chapter profile");
   }

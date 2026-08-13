@@ -97,6 +97,7 @@ interface RunArguments {
 
 // LiveRuntime 记录 execute 需要单独兜底关闭的运行时；buildAgent 成功后由 Runner 统一释放。
 interface LiveRuntime {
+  // buildAgent 成功后 dependencies.resources 接管这些对象；失败时 execute 通过显式字段兜底关闭。
   readonly model: OpenAIChatModel;
   readonly dependencies: BuildDependencies;
   readonly worktreeRuntime?: WorktreeRuntime;
@@ -142,6 +143,8 @@ function parseRunArguments(argv: readonly string[], fixedChapter?: number): RunA
 
 // execute 负责真实资源生命周期：先创建共享运行时，再运行 Agent，最后按统一失败列表关闭。
 async function execute(profile: ChapterProfile, prompt: string): Promise<number> {
+  // 先创建一个可追踪的 LiveRuntime，再把同一 dependencies 交给 buildAgent；
+  // Runner 接管成功路径，构造失败路径仍能按创建顺序回收已启动资源。
   const workspace = resolve(process.cwd());
   const runtime = createLiveRuntime(profile, workspace);
   const {
@@ -206,6 +209,7 @@ async function execute(profile: ChapterProfile, prompt: string): Promise<number>
 
 // 根据章节能力构造真实运行时，并复用同一个 supervisor、inbox 和 store，避免各运行时持有独立状态。
 function createLiveRuntime(profile: ChapterProfile, workspace: string): LiveRuntime {
+  // 这是 P20 唯一的真实组合根：所有跨能力共享关系在此建立，返回对象只读以防执行阶段换依赖。
   const envPath = resolve(workspace, ".env");
   const requiresFallback = profile.capabilities.has("recovery");
   const settings = existsSync(envPath)
