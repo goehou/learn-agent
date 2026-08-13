@@ -15,14 +15,23 @@ import type { ModelClient } from "../core/model.js";
 import { copyToolResult, isToolResult, toolSuccess } from "../core/tools.js";
 import type { ToolResult } from "../core/tools.js";
 
+// 单个工具结果超过此 UTF-8 字节数时优先落盘并只回填引用预览。
 export const DEFAULT_PERSIST_THRESHOLD_BYTES = 30_000;
+// 同一轮结果允许留在上下文中的总预算，超出部分按大小优先持久化。
 export const DEFAULT_BATCH_BUDGET_BYTES = 200_000;
+// 工具结果引用保留的头部预览字节数。
 export const DEFAULT_PREVIEW_HEAD_BYTES = 2_000;
+// 工具结果引用保留的尾部预览字节数。
 export const DEFAULT_PREVIEW_TAIL_BYTES = 2_000;
+// 微压缩时保留的最近完整工具交换组数量。
 export const DEFAULT_KEEP_RECENT_TOOL_GROUPS = 3;
+// prompt-too-long 响应式压缩后保留的最近消息组数量。
 export const DEFAULT_REACTIVE_TAIL_GROUPS = 5;
+// 请求历史超过此预算时，在模型调用前主动生成摘要。
 export const DEFAULT_PROACTIVE_THRESHOLD_BYTES = 50_000;
+// snip 压缩允许保留的最大消息组数。
 export const DEFAULT_SNIP_MAX_GROUPS = 50;
+// snip 压缩保留的最早消息组数，用于保留任务开端上下文。
 export const DEFAULT_SNIP_KEEP_HEAD_GROUPS = 3;
 export const COMPACTED_TOOL_RESULT = "[Earlier tool result compacted. Re-run if needed.]";
 
@@ -58,6 +67,7 @@ export class PromptTooLongRetryError extends CompactionError {
 }
 
 export interface CompactionSummaryOptions {
+  // 当前目标、事实、文件、剩余工作和约束共同构成可恢复的最小摘要。
   readonly currentGoal: string;
   readonly keyFindings: readonly string[];
   readonly filesReadOrChanged: readonly string[];
@@ -84,6 +94,7 @@ export class CompactionSummary {
 }
 
 export interface HistorySummarizer {
+  // 摘要器只读消息快照；不得修改 canonical history 或调用工具。
   summarize(history: readonly ChatMessage[]): Promise<CompactionSummary>;
 }
 
@@ -126,8 +137,11 @@ export class ModelHistorySummarizer implements HistorySummarizer {
 }
 
 export interface ArtifactReference {
+  // 工件的绝对路径，仅供本地清理；模型使用 relativePath。
   readonly path: string;
+  // 相对工作区路径，可安全写入工具结果和摘要。
   readonly relativePath: string;
+  // 落盘前正文的 UTF-8 字节数，帮助模型判断是否需要重新读取。
   readonly originalBytes: number;
 }
 
@@ -137,12 +151,15 @@ export interface ToolResultArtifact {
 }
 
 export interface ToolResultBudgetOutcome {
+  // 与输入结果一一对应的替换快照，保证 tool_call 配对关系不变。
   readonly results: readonly ToolResult[];
   readonly artifacts: readonly ToolResultArtifact[];
 }
 
 export interface HistoryCompactionOutcome {
+  // 下一次模型请求使用的摘要加尾部消息快照。
   readonly history: readonly ChatMessage[];
+  // canonical transcript 的持久化引用，失败恢复时仍可定位完整历史。
   readonly transcript: ArtifactReference;
 }
 
@@ -153,7 +170,9 @@ interface MessageGroup {
 }
 
 export interface CompactionManagerOptions {
+  // 所有 artifact 必须落在此工作区下，路径边界在构造时解析。
   readonly workspace: string;
+  // 生成结构化摘要的模型边界；摘要请求禁用工具。
   readonly summarizer: HistorySummarizer;
   readonly idGenerator?: () => string;
   readonly persistThresholdBytes?: number;
@@ -181,7 +200,9 @@ export class CompactionManager {
   readonly #snipMaxGroups: number;
   readonly #snipKeepHeadGroups: number;
   readonly #keepRecentToolGroups: number;
+  // prepare 的缓存仅针对最近 canonical 快照；canonical history 始终由调用方持有。
   #preparedSource: readonly ChatMessage[] | undefined;
+  // 与 #preparedSource 对应的请求级压缩结果，可在纯追加时增量复用。
   #preparedHistory: readonly ChatMessage[] | undefined;
 
   constructor(options: CompactionManagerOptions) {
