@@ -199,6 +199,7 @@ export const P10: ChapterProfile = Object.freeze({
 
 // P11 在 P10 能力上追加 recovery，模型请求由 RecoveryManager 接管。
 export const P11: ChapterProfile = Object.freeze({
+  // P11 将模型调用统一交给 RecoveryManager，集中处理超时、重试和长度恢复。
   chapter: 11,
   capabilities: new CapabilitySet([
     "loop",

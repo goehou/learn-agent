@@ -87,12 +87,18 @@ export class CancellationToken {
 
 // 构造时校验预算关系，避免运行期把供应商不接受的 maxTokens 发出去。
 export interface RecoveryConfigOptions {
+  // 主模型连续过载时切换到的备用模型名称。
   readonly primaryModel: string;
   readonly fallbackModel: string;
+  // 首次请求的输出预算；length 后提升到 escalatedMaxTokens。
   readonly initialMaxTokens?: number;
+  // 长度恢复阶段使用的第二档预算，不能超过模型上限。
   readonly escalatedMaxTokens?: number;
+  // 供应商允许的最大输出预算，保护配置不会发出非法值。
   readonly modelMaxTokens?: number;
+  // 同一逻辑请求最多追加的纯文本续写次数。
   readonly maxContinuations?: number;
+  // 429/529 等瞬态失败的总尝试上限。
   readonly maxTransientAttempts?: number;
   readonly baseDelaySeconds?: number;
   readonly maxDelaySeconds?: number;
@@ -173,17 +179,25 @@ export class RecoveryConfig {
 
 // 回合内可变恢复状态只由 RecoveryManager 持有，外部通过只读快照观察。
 export interface RecoveryState {
+  // 当前实际发送请求所用模型和输出预算。
   currentModel: string;
   currentMaxTokens: number;
+  // 是否已经从初始预算升级，避免重复升级分支。
   hasEscalated: boolean;
+  // 已追加的续写片段数量。
   recoveryCount: number;
+  // 连续 529 次数，达到阈值后切换 fallback。
   consecutive529: number;
+  // 当前窗口是否已执行 prompt-too-long 响应式压缩。
   hasAttemptedReactiveCompact: boolean;
 }
 
 export interface RecoveryManagerOptions {
+  // 原始模型调用边界，所有重试仍归属于同一逻辑请求。
   readonly model: ModelClient;
+  // prompt-too-long 时复用的上下文压缩器。
   readonly compaction: CompactionManager;
+  // 固定的预算、退避、fallback 和 deadline 约束。
   readonly config: RecoveryConfig;
   readonly monotonic?: () => number;
   readonly utcNow?: () => Date;
@@ -203,6 +217,7 @@ export class RecoveryManager {
   readonly #jitter: (upperBound: number) => number;
   readonly #cancellation: CancellationToken;
   #state: RecoveryState | undefined;
+  // 单回合总 deadline；重试、sleep 和压缩共享此截止时间。
   #deadline: number | undefined;
 
   constructor(options: RecoveryManagerOptions) {
