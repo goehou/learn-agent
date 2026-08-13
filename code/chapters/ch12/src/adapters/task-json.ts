@@ -74,6 +74,7 @@ export class JsonTaskStore implements TaskStore {
     this.#atomicReplace = options.atomicReplace ?? atomicReplace;
   }
 
+  // createTask 在锁内重载图、校验无环和唯一 ID，然后原子写入任务。
   async createTask(input: CreateTaskInput): Promise<Task> {
     const paths = await this.#preparePaths(true);
     if (paths === undefined) {
