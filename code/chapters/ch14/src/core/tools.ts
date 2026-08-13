@@ -10,8 +10,11 @@ export type EffectClass = "read" | "write" | "execute" | "external";
 export type ConcurrencyClass = "inline" | "background_eligible";
 
 export interface ToolContext {
+  // 所有文件和命令副作用的工作区根边界。
   readonly workspace: string;
+  // 当前调用主体；Cron 事件回合使用计划创建者身份。
   readonly identity: string;
+  // 外部事件 id 映射成幂等键，供工具消除重复执行。
   readonly idempotencyKey?: string;
 }
 
@@ -58,6 +61,7 @@ export interface ToolDefinition<Input> {
   readonly description: string;
   readonly inputSchema: z.ZodType<Input>;
   readonly effect: EffectClass;
+  // 声明工具是否允许 Dispatcher 转为后台作业。
   readonly concurrency?: ConcurrencyClass;
   readonly handler: (input: Input, context: ToolContext) => Promise<ToolResult> | ToolResult;
 }
@@ -68,6 +72,7 @@ export interface StoredToolDefinition {
   readonly description: string;
   readonly inputSchema: z.ZodType<unknown>;
   readonly effect: EffectClass;
+  // 注册时已归一化为 inline 或 background_eligible。
   readonly concurrency: ConcurrencyClass;
   readonly invoke: (input: unknown, context: ToolContext) => Promise<ToolResult>;
 }
