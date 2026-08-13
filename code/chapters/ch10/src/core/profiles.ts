@@ -177,6 +177,7 @@ export const P09: ChapterProfile = Object.freeze({
 
 // P10 在 P09 能力上追加 dynamic_prompt，让组合根切换到运行时渲染系统提示。
 export const P10: ChapterProfile = Object.freeze({
+  // P10 将系统提示改为运行时渲染，以便工具、Skill 和记忆状态即时反映。
   chapter: 10,
   capabilities: new CapabilitySet([
     "loop",
