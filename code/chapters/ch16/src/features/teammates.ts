@@ -75,11 +75,15 @@ export class TeammateClosedError extends TeammateError {
 }
 
 export interface Teammate {
+  // 规范 Agent slug，同时作为 mailbox recipient 和 ToolContext.identity。
   readonly name: string;
+  // 创建时固定的职责描述，用于构造独立 Runner 提示。
   readonly role: string;
+  // 当前进程内 worker 状态快照；状态变化时整体替换。
   readonly status: TeammateStatus;
 }
 
+// 工厂为每名队友创建独立历史的 AgentRunner，并注入受控消息与协议工具。
 export type TeammateRunnerFactory = (
   name: string,
   role: string,
@@ -87,33 +91,53 @@ export type TeammateRunnerFactory = (
 ) => AgentRunner;
 
 interface Worker {
+  // 对外可观察的不可变队友快照。
   teammate: Teammate;
+  // 该队友独占的 AgentRunner 和 canonical history。
   readonly runner: AgentRunner;
+  // supervisor 下的受管任务；undefined 表示当前没有在途循环。
   task: Promise<void> | undefined;
+  // 当前 processing 租约；关闭或取消时必须 release 回 ready。
   currentMessage: MailboxItem | undefined;
+  // 当前 worker 循环的取消控制器，与 supervisor signal 衔接。
   abort: AbortController | undefined;
+  // 消息租约和 Runner 都成功清理后才为 true，支持 close 重试。
   closeComplete: boolean;
+  // 取消阶段无法 release 消息时暂存，交给 close 汇总报告。
   cleanupFailure: unknown | undefined;
 }
 
 // 每名队友拥有独立 AgentRunner 和身份；共享资源仅限 mailbox、事件 Inbox 与调度器。
 export class TeammateRuntime {
+  // 普通与协议消息共享的持久 MailboxStore。
   readonly #store: MailboxStore;
+  // Lead 事件发布目标，与 CronRuntime 使用同一个实例。
   readonly #inbox: EventInbox;
+  // 所有队友 worker 都作为该 supervisor 的受管任务运行。
   readonly #supervisor: JobSupervisor;
+  // 统一实现事件 drain/wait/ack 和 wakeup 排序。
   readonly #cronRuntime: CronRuntime;
+  // 规范化 Lead 名称，默认固定为 lead。
   readonly #leadName: string;
+  // 仅保存当前进程已创建的队友及其独立 Runner。
   readonly #workers = new Map<string, Worker>();
   // 记录已发布到 EventInbox 的 mailbox 事件，避免确认失败重投时重复排队。
   readonly #queuedMessageIds = new Set<string>();
+  // Lead 暴露给模型的创建队友工具定义。
   readonly #spawnToolDefinition: ToolDefinition<SpawnTeammateInput>;
+  // Lead 与队友共享的普通消息工具定义。
   readonly #sendToolDefinition: ToolDefinition<SendMessageInput>;
   // 协议运行时与队友共享同一 store，负责 Lead 侧消息校验与 ack 状态消费。
   #protocolRuntime: ProtocolRuntime | undefined;
+  // start 前注入，为每名队友创建带独立历史的 Runner。
   #runnerFactory: TeammateRunnerFactory | undefined;
+  // 发布 Lead 新事件后触发组合根安排事件回合。
   #wakeup: (() => Promise<void>) | undefined;
+  // 串行化队友注册、普通发送和协议投递。
   #registryTail: Promise<void> = Promise.resolve();
+  // start 完成后才允许 spawn/send/deliverProtocol。
   #started = false;
+  // close 一开始即封闭新操作，清理失败可再次 close 重试。
   #closed = false;
 
   constructor(options: {
@@ -160,34 +184,43 @@ export class TeammateRuntime {
   }
 
   get supervisor(): JobSupervisor {
+    // 组合根复用同一 supervisor，使后台作业与队友 worker 共享关闭顺序。
     return this.#supervisor;
   }
   get eventInbox(): EventInbox {
+    // 队友结果与 Cron 事件进入同一事件泵，避免平行历史写入路径。
     return this.#inbox;
   }
   get cronRuntime(): CronRuntime {
+    // drain/wait/ack 委托给共享 CronRuntime，保留统一事件排序。
     return this.#cronRuntime;
   }
   get mailboxStore(): MailboxStore {
+    // 协议与普通消息必须共用该 Store，保持单一租约状态机。
     return this.#store;
   }
   get hasPendingWork(): boolean {
+    // CronRuntime 汇总 EventInbox 与调度状态，是事件泵的单一待办判断。
     return this.#cronRuntime.hasPendingWork;
   }
   get toolDefinitions(): readonly (
     | ToolDefinition<SpawnTeammateInput>
     | ToolDefinition<SendMessageInput>
   )[] {
+    // 保持工具顺序稳定；P16 协议工具由组合根按身份分别追加。
     return Object.freeze([this.#spawnToolDefinition, this.#sendToolDefinition]);
   }
   get spawnToolDefinition(): ToolDefinition<SpawnTeammateInput> {
+    // 组合根按能力位注册，不暴露内部可变定义。
     return this.#spawnToolDefinition;
   }
   get sendToolDefinition(): ToolDefinition<SendMessageInput> {
+    // sender 始终由 ToolContext 注入，工具输入不能伪造来源。
     return this.#sendToolDefinition;
   }
 
   configureRunnerFactory(factory: TeammateRunnerFactory): void {
+    // 工厂只能启动前绑定一次，防止既有和新建队友使用不同契约。
     if (typeof factory !== "function") throw new TypeError("factory must be a function");
     if (this.#runnerFactory !== undefined || this.#started) {
       throw new TeammateStateError("Teammate runner factory must be configured once before start");
@@ -207,6 +240,7 @@ export class TeammateRuntime {
   }
 
   bindWakeup(wakeup: () => Promise<void>): void {
+    // wakeup 由组合根绑定，用于有新 Lead 事件时启动独立事件回合。
     if (typeof wakeup !== "function") throw new TypeError("wakeup must be a function");
     this.#wakeup = wakeup;
   }
@@ -224,6 +258,7 @@ export class TeammateRuntime {
   }
 
   async ready(): Promise<void> {
+    // AgentRunner 拉取事件前调用，确保 Lead ready 消息已发布。
     await this.start();
   }
 
@@ -329,6 +364,7 @@ export class TeammateRuntime {
       readonly signal?: AbortSignal;
     },
   ): Promise<ProtocolMailboxMessage> {
+    // abort 在持久化前后各检查一次，取消后不得继续唤醒参与者。
     this.#ensureAvailable();
     if (!isProtocolMailboxStore(this.#store)) {
       throw new TeammateStateError("Mailbox store does not support protocol messages");
@@ -612,6 +648,7 @@ export class TeammateRuntime {
   }
 
   async #notifyLead(): Promise<void> {
+    // 只有发布了新事件才唤醒事件回合，空扫描不制造模型调用。
     const published = await this.#publishLeadMessages();
     if (published && this.#wakeup !== undefined) await this.#wakeup();
   }
@@ -650,6 +687,7 @@ export class TeammateRuntime {
     }
   }
   #markMailboxEventsDequeued(events: readonly RuntimeEvent[]): void {
+    // 出队只释放进程内去重标记；持久 processing 状态仍等 ack 处理。
     for (const event of events) {
       if (!(isMailboxMessage(event) || isProtocolMailboxMessage(event))) continue;
       this.#queuedMessageIds.delete((event as MailboxItem).id);
@@ -670,6 +708,7 @@ export class TeammateRuntime {
     }
   }
   #setStatus(worker: Worker, status: TeammateStatus): void {
+    // 状态变化通过替换冻结快照完成，外部引用不会被就地修改。
     worker.teammate = snapshot(worker.teammate.name, worker.teammate.role, status);
   }
   #ensureAvailable(): void {
@@ -693,14 +732,17 @@ export class TeammateRuntime {
 }
 
 function snapshot(name: string, role: string, status: TeammateStatus): Teammate {
+  // 每次迁移返回新冻结对象，使观察者不会看到半更新字段。
   return Object.freeze({ name, role, status });
 }
 function requireText(value: string, label: string): string {
+  // Mailbox 与协议正文统一拒绝空白，避免生成不可执行回合。
   if (typeof value !== "string" || value.trim().length === 0)
     throw new Error(`${label} must not be empty`);
   return value.trim();
 }
 function isMailboxMessage(value: RuntimeEvent): value is MailboxMessage {
+  // 普通与协议事件都使用 kind=mailbox；该守卫只收窄 P15 普通消息。
   return value.toPayload().kind === "mailbox" && "id" in value;
 }
 function errorCode(error: unknown, fallback: string): string {

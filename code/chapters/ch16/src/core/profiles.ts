@@ -24,11 +24,14 @@ export type Capability =
   | "plan_gate";
 
 export interface ChapterProfile {
+  // 固定章节编号，用于选择累计能力和错误提示。
   readonly chapter: number;
+  // 只读能力集合，组合根据此决定依赖和工具是否必须存在。
   readonly capabilities: ReadonlySet<Capability>;
 }
 
 class CapabilitySet implements ReadonlySet<Capability> {
+  // 内部集合只在构造时写入，向外实现 ReadonlySet 以防 profile 被修改。
   readonly #values: Set<Capability>;
 
   constructor(values: readonly Capability[]) {
@@ -36,22 +39,27 @@ class CapabilitySet implements ReadonlySet<Capability> {
   }
 
   get size(): number {
+    // 暴露集合大小以满足 ReadonlySet 契约。
     return this.#values.size;
   }
 
   has(value: Capability): boolean {
+    // 组合根用 has 判断某章是否允许注入对应运行时。
     return this.#values.has(value);
   }
 
   entries(): SetIterator<[Capability, Capability]> {
+    // 迭代器保持原生 Set 的能力枚举顺序。
     return this.#values.entries();
   }
 
   keys(): SetIterator<Capability> {
+    // key 与 value 相同，保留 ReadonlySet 的标准接口。
     return this.#values.keys();
   }
 
   values(): SetIterator<Capability> {
+    // 返回当前冻结快照的能力迭代器。
     return this.#values.values();
   }
 
@@ -59,12 +67,14 @@ class CapabilitySet implements ReadonlySet<Capability> {
     callbackfn: (value: Capability, value2: Capability, set: ReadonlySet<Capability>) => void,
     thisArg?: unknown,
   ): void {
+    // 回调接收本集合自身，禁止暴露可写内部 Set。
     this.#values.forEach((value) => {
       callbackfn.call(thisArg, value, value, this);
     });
   }
 
   [Symbol.iterator](): SetIterator<Capability> {
+    // 允许用 spread 构造下一章的累计能力集合。
     return this.values();
   }
 }

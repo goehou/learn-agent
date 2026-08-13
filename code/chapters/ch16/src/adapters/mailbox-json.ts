@@ -41,23 +41,33 @@ const LOCK_UPDATE_MS = 10_000;
 const PROCESS_LOCK_TAILS = new Map<string, Promise<void>>();
 
 interface MailboxPaths {
+  // realpath 后的工作区根，用于锁键和路径逃逸校验。
   readonly workspace: string;
+  // 共享状态根，存放 mailbox 目录和锁文件。
   readonly stateRoot: string;
+  // 每个 recipient 的 ready/processing/done/quarantine 根目录。
   readonly root: string;
+  // proper-lockfile 使用的跨进程锁路径。
   readonly lock: string;
 }
 
+// 每个收件人都拥有同构的四态目录集合。
 type MailboxDirectories = Readonly<Record<MailboxState, string>>;
 
 export interface FileMailboxStoreOptions {
+  // 测试注入确定消息 UUID；生产默认使用随机 UUID。
   readonly idGenerator?: () => string;
+  // 测试注入确定创建时间，生产使用当前 UTC 时间。
   readonly clock?: () => Date;
 }
 
 // 文件存储实现负责 ready/processing/done/quarantine 四态迁移；调用方只依赖 MailboxStore 协议。
 export class FileMailboxStore implements MailboxStore {
+  // 保留原始 workspace 输入，实际操作前再解析真实路径。
   readonly #workspaceInput: string;
+  // 所有普通和协议消息共用该 id 生成器。
   readonly #idGenerator: () => string;
+  // 所有 envelope 时间共用该时钟，便于排序和重放测试。
   readonly #clock: () => Date;
 
   constructor(workspace: string, options: FileMailboxStoreOptions = {}) {

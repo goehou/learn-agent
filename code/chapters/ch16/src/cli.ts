@@ -78,7 +78,9 @@ class TerminalAuditSink implements AuditSink {
 }
 
 interface RunArguments {
+  // 固定入口或通用入口最终运行的章节编号。
   readonly chapter: number;
+  // 发送给 Agent Loop 的初始用户 prompt。
   readonly prompt: string;
 }
 

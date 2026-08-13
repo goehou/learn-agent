@@ -38,20 +38,35 @@ const EMPTY_SKILLS_CATALOG = "(No workspace Skills are currently available.)";
 
 // P16 将协议运行时的 plan gate 追加到队友权限策略，不能由 Hook 绕过。
 export interface BuildDependencies {
+  // 模型调用与摘要、恢复、队友 Runner 共用的外部模型边界。
   readonly model: ModelClient;
+  // 所有文件、状态和持久化适配器使用的工作区根。
   readonly workspace: string;
+  // Shell 工具的执行适配器；未注入时由组合根创建默认实现。
   readonly commandRunner?: CommandRunner;
+  // 文件工具的 workspace 边界适配器。
   readonly fileSystem?: WorkspaceFileSystem;
+  // ask 权限的审批边界，P03+ 缺失时策略 fail-closed。
   readonly approvalProvider?: ApprovalProvider;
+  // 最终权限决策的审计边界。
   readonly auditSink?: AuditSink;
+  // 生命周期 Hook 注册表，只有具备 hooks 能力的 profile 才允许注入。
   readonly hooks?: HookRegistry;
+  // Agent Loop 单次运行允许的最大模型回合数。
   readonly maxTurns?: number;
+  // 当前 Agent 身份，用于工具上下文和动态 Prompt。
   readonly identity?: string;
+  // P11+ 恢复与 fallback 模型的统一 deadline 配置。
   readonly recoveryConfig?: RecoveryConfig;
+  // P12+ 任务工具使用的持久化任务图。
   readonly taskStore?: TaskStore;
+  // P13+ 后台作业 supervisor，与事件 Inbox 共享生命周期。
   readonly backgroundSupervisor?: JobSupervisor;
+  // P14+ Cron runtime，与 supervisor 共享事件泵。
   readonly cronRuntime?: CronRuntime;
+  // P15+ 队友 runtime，Lead 与每名队友共享 mailbox 传输。
   readonly teammateRuntime?: TeammateRuntime;
+  // P16 唯一协议编排实例；必须绑定同一个 teammateRuntime 与 MailboxStore。
   readonly protocolRuntime?: ProtocolRuntime;
 }
 
@@ -327,7 +342,9 @@ function createMemorySession(
 }
 
 interface StandardTools {
+  // 按 profile 裁剪后的标准工具注册表快照。
   readonly tools: ToolRegistry;
+  // P05+ 的 TODO 状态器，缺失表示本章不暴露 TODO 能力。
   readonly todoTracker?: TodoTracker;
 }
 
