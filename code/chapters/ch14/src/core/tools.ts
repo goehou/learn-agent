@@ -1,0 +1,241 @@
+import { z } from "zod";
+
+import type { ToolCall } from "./messages.js";
+import { toolCall } from "./messages.js";
+import type { OpenAIToolSchema } from "./model.js";
+
+// effect 是权限策略和工具列表可见性的最小事实来源，不依赖工具名称猜测。
+export type EffectClass = "read" | "write" | "execute" | "external";
+// concurrency 是 Dispatcher 判断工具能否转后台执行的显式契约，缺省为 inline。
+export type ConcurrencyClass = "inline" | "background_eligible";
+
+export interface ToolContext {
+  readonly workspace: string;
+  readonly identity: string;
+  readonly idempotencyKey?: string;
+}
+
+export interface ToolResult {
+  readonly content: string;
+  readonly isError: boolean;
+  readonly errorCode?: string;
+}
+
+// 成功和失败都返回不可变 ToolResult；错误必须携带稳定错误码。
+export function toolSuccess(content: string): ToolResult {
+  return Object.freeze({ content, isError: false });
+}
+
+// 失败结果必须提供稳定 errorCode，便于模型、Hook 和存储层分类处理。
+export function toolError(errorCode: string, message: string): ToolResult {
+  if (errorCode.trim().length === 0) {
+    throw new Error("tool error code must not be empty");
+  }
+  return Object.freeze({
+    content: `Error [${errorCode}]: ${message}`,
+    isError: true,
+    errorCode,
+  });
+}
+
+// 任何进入 canonical history 的工具结果都深拷贝，防止 handler 内部可变对象污染会话。
+export function copyToolResult(result: ToolResult): ToolResult {
+  if (!isToolResult(result)) {
+    throw new Error("tool result must satisfy the ToolResult contract");
+  }
+  if (!result.isError) {
+    return toolSuccess(result.content);
+  }
+  const errorCode = result.errorCode;
+  if (errorCode === undefined) {
+    throw new Error("error tool result requires an errorCode");
+  }
+  return Object.freeze({ content: result.content, isError: true, errorCode });
+}
+
+export interface ToolDefinition<Input> {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: z.ZodType<Input>;
+  readonly effect: EffectClass;
+  readonly concurrency?: ConcurrencyClass;
+  readonly handler: (input: Input, context: ToolContext) => Promise<ToolResult> | ToolResult;
+}
+
+// StoredToolDefinition 隐藏泛型 Input，统一把 schema 校验放在 invoke 边界。
+export interface StoredToolDefinition {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: z.ZodType<unknown>;
+  readonly effect: EffectClass;
+  readonly concurrency: ConcurrencyClass;
+  readonly invoke: (input: unknown, context: ToolContext) => Promise<ToolResult>;
+}
+
+export interface PreparedToolCall {
+  readonly call: ToolCall;
+  readonly definition?: StoredToolDefinition;
+  readonly arguments?: unknown;
+  readonly error?: ToolResult;
+}
+
+export function freezePreparedToolCall(
+  call: ToolCall,
+  definition: StoredToolDefinition,
+  argumentsValue: unknown,
+): PreparedToolCall {
+  return Object.freeze({
+    call: toolCall(call.id, call.name, call.arguments),
+    definition,
+    arguments: freezeInput(structuredClone(argumentsValue)),
+  });
+}
+
+export class ToolRegistry {
+  readonly #definitions: Map<string, StoredToolDefinition>;
+  readonly #mutable: boolean;
+
+  constructor(definitions: ReadonlyMap<string, StoredToolDefinition> = new Map(), mutable = true) {
+    this.#definitions = new Map(definitions);
+    this.#mutable = mutable;
+  }
+
+  get names(): readonly string[] {
+    return Object.freeze([...this.#definitions.keys()]);
+  }
+
+  // 注册时立即冻结定义；运行期 prepare() 只允许解析、校验和深拷贝输入。
+  register<Input>(definition: ToolDefinition<Input>): void {
+    if (!this.#mutable) {
+      throw new Error("tool registry snapshot is immutable");
+    }
+    if (!/^[A-Za-z0-9_]+$/.test(definition.name)) {
+      throw new Error(`invalid tool name: ${definition.name}`);
+    }
+    if (definition.description.trim().length === 0) {
+      throw new Error("tool description must not be empty");
+    }
+    if (this.#definitions.has(definition.name)) {
+      throw new Error(`tool already registered: ${definition.name}`);
+    }
+
+    const stored: StoredToolDefinition = Object.freeze({
+      name: definition.name,
+      description: definition.description,
+      inputSchema: definition.inputSchema,
+      effect: definition.effect,
+      // 未声明的工具保持同步执行，避免后台能力静默扩散。
+      concurrency: definition.concurrency === undefined ? "inline" : definition.concurrency,
+      invoke: async (input: unknown, context: ToolContext) =>
+        definition.handler(definition.inputSchema.parse(input), context),
+    });
+    this.#definitions.set(definition.name, stored);
+  }
+
+  // snapshot 用于给子 Agent 等边界提供只读工具视图，不能继续注册新工具。
+  snapshot(): ToolRegistry {
+    return new ToolRegistry(this.#definitions, false);
+  }
+
+  // 模型侧 schema 与运行时 handler 同源，避免平行定义漂移。
+  openAITools(): readonly OpenAIToolSchema[] {
+    return Object.freeze(
+      [...this.#definitions.values()].map((definition) => ({
+        type: "function" as const,
+        function: {
+          name: definition.name,
+          description: definition.description,
+          parameters: z.toJSONSchema(definition.inputSchema) as Readonly<Record<string, unknown>>,
+        },
+      })),
+    );
+  }
+
+  // 参数是不可信输入：先解析 JSON，再按 schema 校验，最后冻结完整调用快照。
+  prepare(call: ToolCall): PreparedToolCall {
+    const definition = this.#definitions.get(call.name);
+    if (definition === undefined) {
+      return { call, error: toolError("unknown_tool", `Unknown tool: ${call.name}`) };
+    }
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(call.arguments);
+    } catch {
+      // 工具故障转成可回填消息，循环可继续让模型决定下一步。
+      return {
+        call,
+        definition,
+        error: toolError("invalid_json", "Tool arguments must be valid JSON"),
+      };
+    }
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+      return {
+        call,
+        definition,
+        error: toolError("invalid_arguments", "Tool arguments must be a JSON object"),
+      };
+    }
+
+    const parsed = definition.inputSchema.safeParse(raw);
+    if (!parsed.success) {
+      return {
+        call,
+        definition,
+        error: toolError("invalid_arguments", "Tool arguments failed schema validation"),
+      };
+    }
+    // Pre Hook 只能通过 updatedInput 显式改写，不能就地修改受信任的准备结果。
+    return freezePreparedToolCall(call, definition, parsed.data);
+  }
+
+  // handler 异常统一归一为 tool_execution_error，不让内部错误文本直接进入模型上下文。
+  async invoke(prepared: PreparedToolCall, context: ToolContext): Promise<ToolResult> {
+    if (prepared.error !== undefined) {
+      return prepared.error;
+    }
+    if (prepared.definition === undefined || prepared.arguments === undefined) {
+      throw new Error("prepared tool call is incomplete");
+    }
+    try {
+      const result: unknown = await prepared.definition.invoke(prepared.arguments, context);
+      if (!isToolResult(result)) {
+        return toolError("invalid_tool_result", "Tool handler returned an invalid result");
+      }
+      return result;
+    } catch {
+      return toolError("tool_execution_error", "Tool execution failed");
+    }
+  }
+}
+
+function freezeInput<Input>(value: Input, seen: WeakSet<object> = new WeakSet()): Input {
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  if (seen.has(value)) {
+    return value;
+  }
+  seen.add(value);
+  for (const nested of Object.values(value)) {
+    freezeInput(nested, seen);
+  }
+  return Object.freeze(value);
+}
+
+// handler 返回值同样属于不可信边界，阻止畸形对象污染会话历史。
+export function isToolResult(value: unknown): value is ToolResult {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const content = Reflect.get(value, "content");
+  const isError = Reflect.get(value, "isError");
+  const errorCode = Reflect.get(value, "errorCode");
+  if (typeof content !== "string" || typeof isError !== "boolean") {
+    return false;
+  }
+  if (isError) {
+    return typeof errorCode === "string" && errorCode.trim().length > 0;
+  }
+  return errorCode === undefined;
+}
