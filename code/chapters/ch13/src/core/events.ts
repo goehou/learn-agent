@@ -8,6 +8,7 @@ export interface RuntimeEvent {
   readonly eventId: string;
   readonly contextIdentity?: string;
   readonly idempotencyKey?: string;
+  // 把事件序列化为模型可见的纯 JSON 数据；实现方负责稳定字段名。
   toPayload(): Readonly<Record<string, unknown>>;
 }
 
@@ -17,6 +18,7 @@ export interface RuntimeEventBatchPosition {
   readonly total: number;
 }
 
+// 校验外部对象是否满足 RuntimeEvent 契约；不信任运行时的鸭子类型输入。
 export function isRuntimeEvent(value: unknown): value is RuntimeEvent {
   if (typeof value !== "object" || value === null) {
     return false;
@@ -41,6 +43,7 @@ export class EventInbox {
   readonly #events: RuntimeEvent[] = [];
   readonly #waiters: Array<() => void> = [];
 
+  // 发布一条事件并唤醒等待者；只接受已通过 RuntimeEvent 校验的对象。
   publish(event: RuntimeEvent): void {
     if (!isRuntimeEvent(event)) {
       throw new TypeError("EventInbox only accepts RuntimeEvent values");
@@ -51,6 +54,7 @@ export class EventInbox {
     }
   }
 
+  // 取走当前已就绪的事件；limit 缺省为完整 FIFO 批次。
   drain(limit?: number): readonly RuntimeEvent[] {
     if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
       throw new Error("limit must be a positive integer or undefined");
@@ -59,6 +63,7 @@ export class EventInbox {
     return Object.freeze(this.#events.splice(0, count));
   }
 
+  // 阻塞等待队列非空后取走一批事件；由 Agent Loop 在等待后台结果时调用。
   async wait(limit?: number): Promise<readonly RuntimeEvent[]> {
     while (this.#events.length === 0) {
       await new Promise<void>((resolve) => this.#waiters.push(resolve));

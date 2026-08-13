@@ -90,20 +90,27 @@ export type ToolResultProcessor = (
 
 // 工具分派器保留原同步执行路径的返回值契约；后台作业先返回占位结果，再通过事件泵补交终态。
 export interface ToolDispatcher {
+  // 接收已完成 schema 校验的调用；实现必须返回统一 ToolResult，不能自行回填历史。
   dispatch(prepared: PreparedToolCall, context: ToolContext): Promise<ToolResult>;
 }
 
 // 事件泵是外部运行时到 Agent Loop 的单向通道：drain 取已就绪事件，waitForEvents 等待 pending 工作，acknowledgeEvents 标记已消费。
 export interface RuntimeEventPump {
+  // 表示外部运行时仍可能产生事件，供无工具轮决定是否阻塞等待。
   readonly hasPendingWork: boolean;
+  // 非阻塞取走当前事件批次。
   drainEvents(limit?: number): readonly RuntimeEvent[];
+  // 在存在 pending 工作时等待下一批事件。
   waitForEvents(limit?: number): Promise<readonly RuntimeEvent[]>;
+  // 确认本批事件已由 Loop 接收；实现可据此持久化消费位置。
   acknowledgeEvents(events: readonly RuntimeEvent[]): void;
+  // 可选恢复屏障，确保构造期恢复事件在首次 drain 前已经发布。
   ready?(): Promise<void>;
 }
 
 // AsyncResource 是 Runner 可管理的关闭边界；由组合根注入，避免核心直接依赖具体后台实现。
 export interface AsyncResource {
+  // 释放异步资源；Runner 会按注入顺序逆序调用。
   close(): Promise<void>;
 }
 

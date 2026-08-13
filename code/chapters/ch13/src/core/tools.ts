@@ -10,8 +10,11 @@ export type EffectClass = "read" | "write" | "execute" | "external";
 export type ConcurrencyClass = "inline" | "background_eligible";
 
 export interface ToolContext {
+  // 所有文件和命令副作用的根边界。
   readonly workspace: string;
+  // 当前调用主体，用于任务 owner 和审计归属。
   readonly identity: string;
+  // 可选幂等键，供异步或外部执行边界消除重复提交。
   readonly idempotencyKey?: string;
 }
 
@@ -58,6 +61,7 @@ export interface ToolDefinition<Input> {
   readonly description: string;
   readonly inputSchema: z.ZodType<Input>;
   readonly effect: EffectClass;
+  // 声明工具只能同步执行，还是允许 Dispatcher 转为后台作业。
   readonly concurrency?: ConcurrencyClass;
   readonly handler: (input: Input, context: ToolContext) => Promise<ToolResult> | ToolResult;
 }
@@ -68,6 +72,7 @@ export interface StoredToolDefinition {
   readonly description: string;
   readonly inputSchema: z.ZodType<unknown>;
   readonly effect: EffectClass;
+  // 注册时把缺省值归一为 inline，运行期不再推断并发语义。
   readonly concurrency: ConcurrencyClass;
   readonly invoke: (input: unknown, context: ToolContext) => Promise<ToolResult>;
 }
