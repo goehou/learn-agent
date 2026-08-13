@@ -36,30 +36,40 @@ let sqlPromise: Promise<SqlJsStatic> | undefined;
 
 // SQLite 任务库独立于早期 JSON 图；每次操作在锁与事务中维护依赖、lease 和 claim token。
 export interface SqliteClock {
+  // 每次事务只读取一次当前时间，保证租约释放、认领和完成使用同一时间基准。
   now(): Date;
 }
 
 export interface SqliteTaskStoreOptions {
+  // 任务 ID、claim token 与时钟可注入，以稳定覆盖冲突、过期和排序测试。
   readonly idGenerator?: () => string;
   readonly claimTokenGenerator?: () => string;
   readonly clock?: SqliteClock;
+  // 租约时长只在认领时固化为绝对截止时间，不会随运行时配置变化追溯修改。
   readonly leaseDurationMs?: number;
 }
 
 interface SqlitePaths {
+  // realpath 后的工作区根，用于拒绝数据库或锁路径逃逸。
   readonly workspace: string;
+  // `.agent_tutorial` 状态根，同时作为 proper-lockfile 的加锁对象。
   readonly root: string;
+  // sql.js 导出后的单一数据库文件。
   readonly database: string;
+  // 跨进程写事务锁；不得是符号链接。
   readonly lock: string;
 }
 
 interface TaskGraph {
+  // 当前事务从数据库重建的不可变任务快照。
   readonly tasks: ReadonlyMap<string, Task>;
+  // SQLite sequence 对应的稳定创建顺序，claimNext 与列表都依赖该顺序。
   readonly order: readonly string[];
 }
 
 export class SqliteTaskStore implements LeasedTaskStore {
   // 认领使用半开租约：过期租约可释放，但完成必须匹配当前 claim token。
+  // 构造器只保存路径与注入边界，数据库目录到首次操作时才创建并验证。
   readonly #workspaceInput: string;
   readonly #idGenerator: () => string;
   readonly #claimTokenGenerator: () => string;
@@ -67,6 +77,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   readonly #leaseDurationMs: number;
 
   constructor(workspace: string, options: SqliteTaskStoreOptions = {}) {
+    // 构造阶段验证注入边界，但不创建目录或打开数据库，避免配置失败留下状态文件。
     if (typeof workspace !== "string" || workspace.trim().length === 0) {
       throw new TypeError("workspace must be a non-empty string");
     }
@@ -96,10 +107,12 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   get databasePath(): string {
+    // 该 getter 只提供可预测展示路径；真正访问前仍会 realpath 并执行安全校验。
     return resolve(this.#workspaceInput, ".agent_tutorial", DATABASE_FILE);
   }
 
   async createTask(input: CreateTaskInput): Promise<Task> {
+    // 依赖存在性、任务插入和依赖顺序写入位于同一事务，任一失败都不留下半张图。
     const id = this.#nextId();
     const dependencies = normalizeDependencies(
       input.blockedBy === undefined ? [] : input.blockedBy,
@@ -144,6 +157,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   async getTask(taskId: string): Promise<Task> {
+    // 读取前先释放已过期租约，因此调用方看到的是当前可认领状态而非陈旧 in_progress。
     const id = normalizeLookupId(taskId);
     return await this.#transaction(true, (database) => {
       const now = this.#now();
@@ -153,6 +167,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   async listTasks(): Promise<readonly Task[]> {
+    // 返回顺序由数据库 sequence 固定，不受 UUID 或并发读取顺序影响。
     return await this.#transaction(true, (database) => {
       releaseExpired(database, this.#now());
       const graph = loadGraph(database);
@@ -167,6 +182,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   async claimTask(taskId: string, owner: string): Promise<TaskClaim> {
+    // 手动认领与自动认领共用 #claim，保持依赖检查、token 和租约语义一致。
     const id = normalizeLookupId(taskId);
     const normalizedOwner = normalizeOwner(owner);
     return await this.#transaction(true, (database) => {
@@ -179,6 +195,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   async claimNext(owner: string): Promise<TaskClaim | undefined> {
+    // 自动认领按稳定创建顺序选择首个 ready task；没有候选时返回 undefined 进入空闲轮询。
     const normalizedOwner = normalizeOwner(owner);
     return await this.#transaction(true, (database) => {
       // 先释放过期租约，再加载完整 DAG，按创建顺序找第一个没有未完成依赖的 pending task。
@@ -202,6 +219,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   async completeTask(taskId: string, owner: string, claimToken: string): Promise<TaskCompletion> {
+    // owner 与 token 必须同时匹配当前租约；旧 token 即使属于同一 owner 也不能完成重认领任务。
     const id = normalizeLookupId(taskId);
     const normalizedOwner = normalizeOwner(owner);
     const normalizedToken = canonicalClaimToken(claimToken);
@@ -257,6 +275,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   #claim(database: Database, graph: TaskGraph, task: Task, owner: string, now: Date): TaskClaim {
+    // 该方法只在 BEGIN IMMEDIATE 内调用，把依赖检查、token 登记和条件更新组成一个认领原子步。
     if (task.status !== TaskStatus.PENDING) {
       throw new TaskStateError(`Task ${task.id} is ${task.status}; expected pending`);
     }
@@ -288,6 +307,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   async #transaction<T>(create: boolean, operation: (database: Database) => T): Promise<T> {
+    // 所有公开操作都收敛到此处，统一执行路径校验、三层互斥、事务提交和数据库原子落盘。
     const paths = await this.#preparePaths(create);
     if (paths === undefined) {
       throw new TaskStorageError("SQLite Task storage root is unavailable");
@@ -383,6 +403,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   async #validatePaths(paths: SqlitePaths): Promise<void> {
+    // 每次持锁操作前重新校验真实路径，防止运行期间目录被替换为链接。
     // 工作区、数据库和锁文件都限制在 realpath 后的 workspace 内，符号链接路径直接拒绝。
     const rootInfo = await lstat(paths.root);
     if (rootInfo.isSymbolicLink() || !rootInfo.isDirectory()) {
@@ -399,6 +420,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   #nextId(): string {
+    // 注入生成器的结果仍必须经过领域 UUID 规范化，测试替身不能绕过生产约束。
     try {
       return canonicalTaskId(this.#idGenerator());
     } catch (error) {
@@ -407,6 +429,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   #nextClaimToken(): string {
+    // claim token 与任务 ID 采用同一 canonical UUID 形式，但通过独立生成器保持职责分离。
     try {
       return canonicalClaimToken(this.#claimTokenGenerator());
     } catch (error) {
@@ -418,6 +441,7 @@ export class SqliteTaskStore implements LeasedTaskStore {
   }
 
   #now(): Date {
+    // 返回副本，避免可变 Date 从时钟边界泄漏进事务状态。
     const value = this.#clock.now();
     if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
       throw new TaskStorageError("Work stealing clock returned an invalid time");
@@ -480,6 +504,7 @@ async function openDatabase(paths: SqlitePaths): Promise<Database> {
 }
 
 async function readDatabase(path: string, SQL: SqlJsStatic): Promise<Database> {
+  // 文件不存在表示首个事务，创建空内存库；其他读取错误必须显式失败。
   try {
     const bytes = await readFile(path);
     return new SQL.Database(bytes);
@@ -490,6 +515,7 @@ async function readDatabase(path: string, SQL: SqlJsStatic): Promise<Database> {
 }
 
 async function getSql(): Promise<SqlJsStatic> {
+  // WASM 初始化进程内只执行一次，所有 store 实例共享同一加载 Promise。
   if (sqlPromise === undefined) {
     sqlPromise = initSqlJs({
       locateFile: () => require.resolve("sql.js/dist/sql-wasm.wasm"),
@@ -516,6 +542,7 @@ async function persistDatabase(path: string, content: Uint8Array): Promise<void>
 }
 
 async function validateDatabaseTargetBeforeOpen(paths: SqlitePaths): Promise<void> {
+  // 打开前检查可防止 sql.js 跟随符号链接读取工作区外数据库。
   if (!(await pathExists(paths.database))) return;
   const information = await lstat(paths.database);
   if (information.isSymbolicLink()) {
@@ -525,6 +552,7 @@ async function validateDatabaseTargetBeforeOpen(paths: SqlitePaths): Promise<voi
 }
 
 async function validateDatabaseFile(paths: SqlitePaths): Promise<void> {
+  // 数据库必须是工作区内、非硬链接、真实路径不变的普通文件。
   const resolved = await realpath(paths.database);
   const information = await stat(paths.database);
   if (
@@ -585,6 +613,7 @@ function loadGraph(database: Database): TaskGraph {
 }
 
 function validateGraph(tasks: ReadonlyMap<string, Task>): void {
+  // 深度优先校验缺失依赖和环；持久化图损坏时整次事务失败。
   const visiting = new Set<string>();
   const visited = new Set<string>();
   const visit = (id: string): void => {
@@ -605,6 +634,7 @@ function validateGraph(tasks: ReadonlyMap<string, Task>): void {
 }
 
 function getExisting(graph: TaskGraph, id: string): Task {
+  // 领域层统一把不存在映射为 TaskNotFoundError，避免上层处理 undefined。
   const task = graph.tasks.get(id);
   if (task === undefined) throw new TaskNotFoundError(`Task does not exist: ${id}`);
   return task;
@@ -623,6 +653,7 @@ function queryRows(
   sql: string,
   params: readonly SqlParam[] = [],
 ): Record<string, unknown>[] {
+  // sql.js 返回列名和值矩阵；这里转换为未信任对象，字段仍由调用方逐项校验。
   const result = database.exec(sql, [...params]);
   const first = result[0];
   if (first === undefined) return [];
@@ -634,6 +665,7 @@ function queryRows(
 type SqlParam = string | number | null;
 
 function normalizeDependencies(values: readonly string[]): readonly string[] {
+  // 保留调用方顺序用于教程展示，但拒绝重复依赖和非规范 UUID。
   if (!Array.isArray(values)) throw new TaskGraphError("Task dependencies must be an array");
   const normalized = values.map((value) => canonicalTaskId(value));
   if (new Set(normalized).size !== normalized.length) {
@@ -663,6 +695,7 @@ function encodeDate(value: Date): string {
 }
 
 function parseOptionalDate(value: unknown): Date | null {
+  // NULL 表示没有活跃租约；非空值必须是可解析时间。
   if (value === null || value === undefined) return null;
   if (typeof value !== "string") throw new TaskStorageError("Persisted lease expiry is invalid");
   const parsed = new Date(value);
@@ -672,6 +705,7 @@ function parseOptionalDate(value: unknown): Date | null {
 }
 
 function requiredString(value: unknown, label: string): string {
+  // 数据库行字段不做宽松字符串转换，类型不符即视为存储损坏。
   if (typeof value !== "string") throw new TaskStorageError(`Persisted ${label} is invalid`);
   return value;
 }
@@ -693,11 +727,13 @@ async function withProcessMutex<T>(key: string, operation: () => Promise<T>): Pr
 }
 
 function pathIsInside(parent: string, child: string): boolean {
+  // 使用 relative 判断包含关系，避免简单字符串前缀把相邻目录误判为子目录。
   const pathFromParent = relative(parent, child);
   return pathFromParent === "" || (!pathFromParent.startsWith("..") && !isAbsolute(pathFromParent));
 }
 
 async function pathExists(path: string): Promise<boolean> {
+  // 仅把 ENOENT 视为不存在，权限或 I/O 错误继续上抛。
   try {
     await lstat(path);
     return true;
@@ -712,6 +748,7 @@ function hasErrorCode(error: unknown, code: string): boolean {
 }
 
 function isWindowsLockRace(error: unknown): boolean {
+  // Windows 上 lock 文件可能在检查与打开之间消失，只重试这一类短暂竞态。
   // proper-lockfile 在 Windows 文件锁删除/重命名阶段可能短暂出现这些错误，短等待后重试即可。
   return (
     hasErrorCode(error, "EBUSY") || hasErrorCode(error, "ENOTEMPTY") || hasErrorCode(error, "EPERM")
@@ -719,5 +756,6 @@ function isWindowsLockRace(error: unknown): boolean {
 }
 
 async function delay(milliseconds: number): Promise<void> {
+  // 文件锁竞争使用固定短等待，避免同步忙循环占满事件循环。
   await new Promise<void>((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }

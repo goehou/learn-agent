@@ -34,6 +34,7 @@ import { WorkStealingRuntime } from "./features/work-stealing.js";
 
 class TerminalApprovalProvider implements ApprovalProvider {
   async decide(request: PermissionRequest): Promise<PermissionDecision> {
+    // 终端审批只处理完整请求；无 TTY 时保守拒绝，不阻塞自动化运行。
     const definition = request.prepared.definition;
     const proposed = request.proposedDecision;
     if (definition === undefined || proposed === undefined) {
@@ -69,6 +70,7 @@ class TerminalApprovalProvider implements ApprovalProvider {
 
 class TerminalAuditSink implements AuditSink {
   async record(request: PermissionRequest, decision: PermissionDecision): Promise<void> {
+    // 审计输出保留工具、来源、行为和理由，不吞掉不完整请求。
     const definition = request.prepared.definition;
     if (definition === undefined) {
       throw new Error("audit request is incomplete");
@@ -80,11 +82,13 @@ class TerminalAuditSink implements AuditSink {
 }
 
 interface RunArguments {
+  // CLI 只接受固定章节号和非空 prompt，不提供隐式默认章节。
   readonly chapter: number;
   readonly prompt: string;
 }
 
 function parseRunArguments(argv: readonly string[], fixedChapter?: number): RunArguments {
+  // 固定章节入口通过前置参数复用同一解析器，未知参数和缺值均显式失败。
   const args = fixedChapter === undefined ? argv : ["--chapter", String(fixedChapter), ...argv];
   let chapter: number | undefined;
   let prompt: string | undefined;
@@ -118,6 +122,7 @@ function parseRunArguments(argv: readonly string[], fixedChapter?: number): RunA
 }
 
 async function execute(profile: ChapterProfile, prompt: string): Promise<number> {
+  // 真实入口按 profile 一次性装配共享资源，并在成功或失败后统一逆序关闭。
   const workspace = resolve(process.cwd());
   const envPath = resolve(workspace, ".env");
   const requiresFallback = profile.capabilities.has("recovery");
@@ -251,6 +256,7 @@ function createTeammateRuntime(
 }
 
 function requiredFallbackModel(fallbackModel: string | undefined): string {
+  // recovery 章节必须显式配置 fallback，不回退到主模型掩盖配置缺失。
   if (fallbackModel === undefined) {
     throw new ConfigurationError(["OPENAI_FALLBACK_MODEL"]);
   }

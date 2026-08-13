@@ -13,8 +13,11 @@ export function isPermissionBehavior(value: unknown): value is PermissionBehavio
 }
 
 export class PermissionDecision {
+  // 最终行为；deny/ask/allow/passthrough 的优先级由策略合并器统一解释。
   readonly behavior: PermissionBehavior;
+  // 面向用户和审计的稳定理由，不承载异常堆栈。
   readonly reason: string;
+  // 标识决定来源，便于区分系统边界、规则、审批和默认路径。
   readonly source: string;
 
   constructor(behavior: PermissionBehavior, reason: string, source: string) {
@@ -46,16 +49,24 @@ export class PermissionDecision {
 }
 
 export interface PermissionRequestOptions {
+  // 已完成 schema 校验且被冻结的调用快照，权限层不能重新解析原始 JSON。
   readonly prepared: PreparedToolCall;
+  // workspace 和 identity 决定路径边界与 P16 plan gate 的主体。
   readonly context: ToolContext;
+  // Hook 或规则建议，最终仍需经过 strongestDecision 合并。
   readonly recommendations?: readonly PermissionDecision[];
+  // 当前 ask 决策交给审批器时的候选结论。
   readonly proposedDecision?: PermissionDecision;
 }
 
 export class PermissionRequest {
+  // 权限决策唯一消费的调用快照。
   readonly prepared: PreparedToolCall;
+  // 执行身份和工作区边界，不能由工具输入伪造。
   readonly context: ToolContext;
+  // 所有参与者的建议冻结副本，防止审批过程中被修改。
   readonly recommendations: readonly PermissionDecision[];
+  // 仅 ask 请求存在；allow/deny 不能伪装成待审批状态。
   readonly proposedDecision: PermissionDecision | undefined;
 
   constructor(options: PermissionRequestOptions) {
@@ -91,16 +102,24 @@ export class PermissionRequest {
 export type PermissionMatcher = (request: PermissionRequest) => boolean | Promise<boolean>;
 
 export interface PermissionRuleOptions {
+  // 规则名称同时作为审计 source 和异常定位标签。
   readonly name: string;
+  // 匹配后提出的候选行为，最终仍受系统硬边界约束。
   readonly behavior: PermissionBehavior;
+  // 面向审计和审批器的稳定说明。
   readonly reason: string;
+  // 根据完整 PermissionRequest 决定规则是否适用。
   readonly matches: PermissionMatcher;
 }
 
 export class PermissionRule {
+  // 冻结规则身份，避免运行中修改 plan gate 的语义。
   readonly name: string;
+  // 匹配成功时贡献的候选行为。
   readonly behavior: PermissionBehavior;
+  // 匹配成功时写入决策的稳定理由。
   readonly reason: string;
+  // 可异步访问协议状态的匹配器。
   readonly matches: PermissionMatcher;
 
   constructor(options: PermissionRuleOptions) {
@@ -124,6 +143,7 @@ export class PermissionRule {
   }
 
   async evaluate(request: PermissionRequest): Promise<PermissionDecision | undefined> {
+    // matcher 支持异步；规则自身不吞异常，策略层会把异常统一转成 deny。
     if (!(await this.matches(request))) {
       return undefined;
     }
@@ -132,24 +152,34 @@ export class PermissionRule {
 }
 
 export interface ApprovalProvider {
+  // 只接收已合并的 ask 请求，必须返回显式 allow 或 deny 才能放行。
   decide(request: PermissionRequest): Promise<PermissionDecision>;
 }
 
 export interface AuditSink {
+  // 记录最终决策；审计失败由策略调用边界向上暴露。
   record(request: PermissionRequest, decision: PermissionDecision): Promise<void>;
 }
 
 export interface PermissionPolicyOptions {
+  // 顺序注册的业务规则，最终按行为强度合并。
   readonly rules?: readonly PermissionRule[];
+  // ask 决策的人工或自动审批边界。
   readonly approval?: ApprovalProvider;
+  // 最终决策的持久审计边界。
   readonly audit?: AuditSink;
+  // write 工具的真实 workspace 路径校验器。
   readonly writeBoundary?: WorkspaceWriteBoundary;
 }
 
 export class PermissionPolicy {
+  // 规则冻结快照；withRules 通过新实例追加，避免污染 Lead 策略。
   readonly #rules: readonly PermissionRule[];
+  // 缺失时 ask fail-closed 为 deny。
   readonly #approval: ApprovalProvider | undefined;
+  // 可选审计 sink，记录所有最终结论。
   readonly #audit: AuditSink | undefined;
+  // 只由 write 工具使用的路径边界适配器。
   readonly #writeBoundary: WorkspaceWriteBoundary | undefined;
 
   constructor(options: PermissionPolicyOptions = {}) {
@@ -208,6 +238,7 @@ export class PermissionPolicy {
   }
 
   async #evaluateRules(request: PermissionRequest): Promise<readonly PermissionDecision[]> {
+    // 并行求值全部规则，再按 deny > ask > allow 合并；任一规则异常按 deny fail-closed。
     const results = await Promise.all(
       this.#rules.map(async (rule) => {
         try {
@@ -300,6 +331,7 @@ export class PermissionPolicy {
 }
 
 function strongestDecision(decisions: readonly PermissionDecision[]): PermissionDecision {
+  // deny 是系统硬边界，优先级最高；ask 次之；只有没有任何参与者拒绝时才落到 allow。
   for (const behavior of ["deny", "ask", "allow"] as const) {
     const decision = decisions.find((candidate) => candidate.behavior === behavior);
     if (decision !== undefined) {

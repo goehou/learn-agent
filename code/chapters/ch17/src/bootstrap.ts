@@ -43,6 +43,7 @@ const EMPTY_SKILLS_CATALOG = "(No workspace Skills are currently available.)";
 
 // P17 注入独立 SQLite claim service，Lead、子代理和队友共享同一认领路径。
 export interface BuildDependencies {
+  // 外部依赖按能力显式注入；P17 不允许同时注入旧 JSON taskStore 与 SQLite runtime。
   readonly model: ModelClient;
   readonly workspace: string;
   readonly commandRunner?: CommandRunner;
@@ -62,6 +63,7 @@ export interface BuildDependencies {
 }
 
 export function buildAgent(profile: ChapterProfile, dependencies: BuildDependencies): AgentRunner {
+  // 先验证 profile/依赖矩阵，再创建任何 Runner，配置错误不会留下半初始化后台资源。
   if (profileForChapter(profile.chapter) !== profile) {
     throw new Error("profile must be a fixed chapter profile");
   }
@@ -363,6 +365,7 @@ function createMemorySession(
   dependencies: BuildDependencies,
   emitContextMessages: boolean,
 ): MemorySession {
+  // 同一个模型查询对象承担选择、抽取和合并，MemoryStore 则绑定当前 workspace。
   const queries = new ModelMemoryQueries(dependencies.model);
   return new MemorySession({
     store: new MemoryStore({ workspace: dependencies.workspace }),
@@ -374,6 +377,7 @@ function createMemorySession(
 }
 
 interface StandardTools {
+  // 基础工具与可选 TODO observer 一起返回，确保父子 Runner 使用同一注册路径。
   readonly tools: ToolRegistry;
   readonly todoTracker?: TodoTracker;
 }
@@ -384,6 +388,7 @@ function createStandardTools(
   fileSystem: WorkspaceFileSystem,
   background: boolean,
 ): StandardTools {
+  // 前两章工具集是累计基线；TODO 能力仅在 profile 声明后追加注册。
   const tools =
     profile.chapter === 1
       ? createChapterOneTools(commandRunner, background)
@@ -401,6 +406,7 @@ function permissionPolicyForProfile(
   fileSystem: WorkspaceFileSystem,
   dependencies: BuildDependencies,
 ): PermissionPolicy | undefined {
+  // P03 前允许仅注入审批器；P03 起必须同时具备审批、审计和写路径边界。
   if (!profile.capabilities.has("policy")) {
     return dependencies.approvalProvider === undefined
       ? undefined

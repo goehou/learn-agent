@@ -27,14 +27,17 @@ export type Capability =
   | "work_stealing";
 
 export interface ChapterProfile {
+  // chapter 与能力集合共同构成固定快照，bootstrap 通过引用身份拒绝伪造 profile。
   readonly chapter: number;
   readonly capabilities: ReadonlySet<Capability>;
 }
 
 class CapabilitySet implements ReadonlySet<Capability> {
+  // 内部 Set 不向外暴露，所有迭代方法只提供只读视图。
   readonly #values: Set<Capability>;
 
   constructor(values: readonly Capability[]) {
+    // 复制后冻结输入语义，调用方后续修改原数组不会改变章节能力。
     this.#values = new Set(values);
   }
 
@@ -43,18 +46,22 @@ class CapabilitySet implements ReadonlySet<Capability> {
   }
 
   has(value: Capability): boolean {
+    // 能力判断集中委托内部 Set，组合根不依赖数组顺序。
     return this.#values.has(value);
   }
 
   entries(): SetIterator<[Capability, Capability]> {
+    // ReadonlySet 迭代协议保持与原生 Set 一致。
     return this.#values.entries();
   }
 
   keys(): SetIterator<Capability> {
+    // key/value 对于集合相同，均返回内部只读迭代器。
     return this.#values.keys();
   }
 
   values(): SetIterator<Capability> {
+    // 返回迭代器而非底层 Set，防止调用方获得可变集合引用。
     return this.#values.values();
   }
 
@@ -62,6 +69,7 @@ class CapabilitySet implements ReadonlySet<Capability> {
     callbackfn: (value: Capability, value2: Capability, set: ReadonlySet<Capability>) => void,
     thisArg?: unknown,
   ): void {
+    // 回调第三参数仍传当前只读包装，不能通过它修改内部 Set。
     this.#values.forEach((value) => {
       callbackfn.call(thisArg, value, value, this);
     });
