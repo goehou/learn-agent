@@ -13,9 +13,12 @@ const requiredFields = ["OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_MODEL"] as 
 
 // 保留缺失字段，CLI 可据此区分配置问题与运行期失败。
 export class ConfigurationError extends Error {
+  // 稳定错误名，CLI 通过它选择配置错误退出码。
   override readonly name = "ConfigurationError";
+  // 缺失或不合法的环境变量名称，冻结副本防止错误对象被篡改。
   readonly missingFields: readonly string[];
 
+  // 用所有失效字段创建可操作错误，可选 cause 保留 URL 解析失败原因。
   constructor(missingFields: readonly string[], options?: ErrorOptions) {
     super(`Missing required settings: ${missingFields.join(", ")}`, options);
     this.missingFields = Object.freeze([...missingFields]);
@@ -23,9 +26,13 @@ export class ConfigurationError extends Error {
 }
 
 export interface OpenAISettings {
+  // 已验证的 SDK 基础地址，不能是完整 Chat Completions endpoint。
   readonly baseUrl: string;
+  // 已去除首尾空白的访问密钥。
   readonly apiKey: string;
+  // 默认模型标识。
   readonly model: string;
+  // 后续恢复能力使用的备用模型；P02 不强制要求。
   readonly fallbackModel?: string;
 }
 

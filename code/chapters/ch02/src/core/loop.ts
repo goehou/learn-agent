@@ -17,13 +17,16 @@ import { toolError } from "./tools.js";
 
 // 核心循环保持消息配对：模型调用后必须为每个工具调用写回一个结果。
 export class AgentRunError extends Error {
+  // 稳定基础错误名，供调用方区分 Agent 运行失败。
   override readonly name: string = "AgentRunError";
 }
 
+// 模型请求次数超过 maxTurns 时抛出，阻止无限循环。
 export class AgentLimitError extends AgentRunError {
   override readonly name: string = "AgentLimitError";
 }
 
+// 模型因长度截断而无法作为最终回答时抛出。
 export class IncompleteModelReplyError extends AgentRunError {
   override readonly name: string = "IncompleteModelReplyError";
 }
@@ -34,37 +37,59 @@ export interface ToolAuthorizer {
 }
 
 export interface ToolAuthorizationDecision {
+  // 是否允许实际执行已经通过 schema 校验的调用。
   readonly allowed: boolean;
+  // 可回填模型的授权理由；空理由视为无效决策。
   readonly reason: string;
 }
 
 export interface RunResult {
+  // 模型停止时提供的最终回答文本。
   readonly finalText: string;
+  // 与内部状态隔离的完整消息历史快照。
   readonly history: readonly ChatMessage[];
+  // 本次运行实际发起的模型请求次数。
   readonly turns: number;
 }
 
 // AgentRunner 选项将纯核心与模型、工具、工作区等外部能力隔离。
 export interface AgentRunnerOptions {
+  // 规范化模型请求的唯一供应商无关边界。
   readonly model: ModelClient;
+  // 运行期工具来源；每轮会取不可变快照。
   readonly tools: ToolRegistry;
+  // 每轮前置而不写入持久 history 的系统约束。
   readonly systemPrompt: string;
+  // 工具上下文使用的工作区根目录。
   readonly workspace: string;
+  // 可选模型请求上限。
   readonly maxTurns?: number;
+  // 注入工具上下文的调用主体标识。
   readonly identity?: string;
+  // 可选授权边界；缺失时按库调用方的信任决定执行。
   readonly authorizer?: ToolAuthorizer;
 }
 
+// 单会话状态机，严格保持模型工具调用与结果消息的配对关系。
 export class AgentRunner {
+  // 已规范化的模型客户端。
   readonly #model: ModelClient;
+  // 源工具注册表，用于每轮构造快照。
   readonly #tools: ToolRegistry;
+  // 稳定系统提示。
   readonly #systemPrompt: string;
+  // 规范化后的工作区根。
   readonly #workspace: string;
+  // 最大模型请求次数。
   readonly #maxTurns: number;
+  // 当前调用主体。
   readonly #identity: string;
+  // 可选授权器。
   readonly #authorizer: ToolAuthorizer | undefined;
+  // 本实例累计的用户、模型与工具事件。
   readonly #history: ChatMessage[] = [];
 
+  // 验证长期配置并固定依赖，任何失败都早于模型请求和副作用。
   constructor(options: AgentRunnerOptions) {
     // 轮次与身份都属于运行契约，构造时失败可避免中途产生不完整历史。
     const maxTurns = options.maxTurns === undefined ? 20 : options.maxTurns;
@@ -88,11 +113,13 @@ export class AgentRunner {
     this.#authorizer = options.authorizer;
   }
 
+  // 返回冻结副本，外部无法修改随后请求使用的历史。
   get history(): readonly ChatMessage[] {
     // 返回副本，调用方不能篡改后续模型请求的对话历史。
     return Object.freeze([...this.#history]);
   }
 
+  // 执行用户请求直到得到最终文本、不可恢复错误或耗尽回合预算。
   async run(prompt: string): Promise<RunResult> {
     // system prompt 每轮重建，持久历史只记录真实对话和工具事件。
     this.#history.push(userMessage(prompt));

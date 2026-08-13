@@ -19,6 +19,7 @@ import type { WorkspaceFileSystem } from "../core/filesystem.js";
 import type { ToolDefinition } from "../core/tools.js";
 import { ToolRegistry, toolError, toolSuccess } from "../core/tools.js";
 
+// shell 的最小输入契约；严格对象拒绝模型附带的未声明参数。
 const shellInputSchema = z.strictObject({
   command: z
     .string()
@@ -61,6 +62,7 @@ export function createShellTool(commandRunner: CommandRunner): ToolDefinition<{ 
   };
 }
 
+// 构建 P01 累积工具集，供 P02 在保留 shell 行为的基础上继续扩展。
 export function createChapterOneTools(commandRunner: CommandRunner): ToolRegistry {
   // P02 仍复用 P01 的注册结果，保证章节快照的累计行为。
   const registry = new ToolRegistry();
@@ -68,6 +70,7 @@ export function createChapterOneTools(commandRunner: CommandRunner): ToolRegistr
   return registry;
 }
 
+// 读取工具的路径和可选行数限制；路径安全性由文件系统边界二次验证。
 const readFileInputSchema = z.strictObject({
   path: z
     .string()
@@ -84,6 +87,7 @@ const readFileInputSchema = z.strictObject({
       "Optional maximum number of lines to return. The full file is returned when omitted.",
     ),
 });
+// 完整写入的输入契约；空 content 有意表示清空文件而非参数错误。
 const writeFileInputSchema = z.strictObject({
   path: z
     .string()
@@ -93,6 +97,7 @@ const writeFileInputSchema = z.strictObject({
     .string()
     .describe("UTF-8 text content to write. Use an empty string to clear the file."),
 });
+// 精确编辑的输入契约；old_text 必填且非空以防无边界插入。
 const editFileInputSchema = z.strictObject({
   path: z.string().min(1).describe("Workspace-relative target file path."),
   old_text: z
@@ -105,6 +110,7 @@ const editFileInputSchema = z.strictObject({
     .string()
     .describe("Replacement text. Use an empty string to delete the matched text."),
 });
+// 文件发现的受限 glob 输入契约；父目录片段会由安全边界拒绝。
 const globInputSchema = z.strictObject({
   pattern: z
     .string()
@@ -115,11 +121,16 @@ const globInputSchema = z.strictObject({
 });
 
 // 从 Zod schema 推导执行器输入，模型描述和实际参数类型不重复维护。
+// 从 schema 推导的读取 handler 输入，防止 TypeScript 类型与模型参数漂移。
 type ReadFileInput = z.infer<typeof readFileInputSchema>;
+// 从 schema 推导的完整写入 handler 输入。
 type WriteFileInput = z.infer<typeof writeFileInputSchema>;
+// 从 schema 推导的精确编辑 handler 输入。
 type EditFileInput = z.infer<typeof editFileInputSchema>;
+// 从 schema 推导的文件发现 handler 输入。
 type GlobInput = z.infer<typeof globInputSchema>;
 
+// 创建只读文本工具，并把文件系统领域错误转译为模型可恢复的错误码。
 function createReadFileTool(fileSystem: WorkspaceFileSystem): ToolDefinition<ReadFileInput> {
   // 基础设施错误在这里映射为模型可见的稳定错误码。
   return {
@@ -153,6 +164,7 @@ function createReadFileTool(fileSystem: WorkspaceFileSystem): ToolDefinition<Rea
   };
 }
 
+// 创建完整内容写入工具，成功时报告实际 UTF-8 字节数而不是字符数。
 function createWriteFileTool(fileSystem: WorkspaceFileSystem): ToolDefinition<WriteFileInput> {
   // 每个文件工具独立映射领域错误，模型可按错误码修正下一次调用。
   return {
@@ -181,6 +193,7 @@ function createWriteFileTool(fileSystem: WorkspaceFileSystem): ToolDefinition<Wr
   };
 }
 
+// 创建首个精确匹配替换工具，避免模型指定模糊行号造成不可预测编辑。
 function createEditFileTool(fileSystem: WorkspaceFileSystem): ToolDefinition<EditFileInput> {
   // 编辑只替换首个精确匹配，避免模型模糊指令造成意外批量修改。
   return {
@@ -218,6 +231,7 @@ function createEditFileTool(fileSystem: WorkspaceFileSystem): ToolDefinition<Edi
   };
 }
 
+// 创建只读路径发现工具，空匹配也是正常工具结果而不是异常。
 function createGlobTool(fileSystem: WorkspaceFileSystem): ToolDefinition<GlobInput> {
   return {
     name: "glob",

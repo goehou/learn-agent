@@ -16,13 +16,18 @@ export type EffectClass = "read" | "write" | "execute" | "external";
 export interface ToolContext {
   // identity 和幂等键为后续策略层预留；P02 执行器只使用 workspace。
   readonly workspace: string;
+  // 调用主体标识，为后续权限策略提供稳定输入。
   readonly identity: string;
+  // 可选去重键，为具副作用重试保留关联。
   readonly idempotencyKey?: string;
 }
 
 export interface ToolResult {
+  // 模型可读取的成功输出或错误正文。
   readonly content: string;
+  // 是否为错误结果，决定 errorCode 的约束。
   readonly isError: boolean;
+  // 错误时必须存在的机器可读稳定码。
   readonly errorCode?: string;
 }
 
@@ -43,13 +48,19 @@ export function toolError(errorCode: string, message: string): ToolResult {
 }
 
 export interface ToolDefinition<Input> {
+  // 提供给模型和注册表的稳定工具名。
   readonly name: string;
+  // 面向模型的使用说明。
   readonly description: string;
+  // 在执行前校验模型 JSON 参数的 Zod schema。
   readonly inputSchema: z.ZodType<Input>;
+  // 权限策略使用的副作用分类。
   readonly effect: EffectClass;
+  // 已验证输入的实际执行器，可同步或异步返回统一结果。
   readonly handler: (input: Input, context: ToolContext) => Promise<ToolResult> | ToolResult;
 }
 
+// 注册后擦除泛型输入的内部定义，统一由 invoke 调用。
 export interface StoredToolDefinition {
   readonly name: string;
   readonly description: string;
@@ -61,24 +72,32 @@ export interface StoredToolDefinition {
 export interface PreparedToolCall {
   // prepare 不抛出模型输入错误，而是保存可安全回填的 error。
   readonly call: ToolCall;
+  // 成功或已识别参数错误时对应的注册工具。
   readonly definition?: StoredToolDefinition;
+  // 通过 schema 的参数对象；存在时才允许执行。
   readonly arguments?: unknown;
+  // 模型输入失败时可直接回填的结果。
   readonly error?: ToolResult;
 }
 
 export class ToolRegistry {
+  // 按名称保存唯一工具定义。
   readonly #definitions: Map<string, StoredToolDefinition>;
+  // false 表示每轮模型请求使用的不可写快照。
   readonly #mutable: boolean;
 
+  // 复制定义映射，避免外部 Map 继续改变当前注册表。
   constructor(definitions: ReadonlyMap<string, StoredToolDefinition> = new Map(), mutable = true) {
     this.#definitions = new Map(definitions);
     this.#mutable = mutable;
   }
 
+  // 返回冻结名称列表，供诊断读取而不暴露内部 Map。
   get names(): readonly string[] {
     return Object.freeze([...this.#definitions.keys()]);
   }
 
+  // 校验元数据并注册工具，将泛型 handler 封装为统一的运行期入口。
   register<Input>(definition: ToolDefinition<Input>): void {
     if (!this.#mutable) {
       throw new Error("tool registry snapshot is immutable");
@@ -105,11 +124,13 @@ export class ToolRegistry {
     this.#definitions.set(definition.name, stored);
   }
 
+  // 创建不可写副本，使模型可见工具集与本轮实际执行集一致。
   snapshot(): ToolRegistry {
     // 模型请求使用不可变快照，确保本轮工具集不会在调用途中改变。
     return new ToolRegistry(this.#definitions, false);
   }
 
+  // 从注册定义稳定生成 OpenAI JSON Schema，避免与 handler 平行维护。
   openAITools(): readonly OpenAIToolSchema[] {
     // 每次导出都生成 JSON Schema，模型描述与实际校验器保持同源。
     return Object.freeze(
@@ -124,6 +145,7 @@ export class ToolRegistry {
     );
   }
 
+  // 查找工具、解析 JSON 并执行 schema 校验；错误转换为可回填结果而不抛出。
   prepare(call: ToolCall): PreparedToolCall {
     // 参数错误也被封装为结果，Agent Loop 仍可回填对应 tool message。
     const definition = this.#definitions.get(call.name);
@@ -160,6 +182,7 @@ export class ToolRegistry {
     return { call, definition, arguments: parsed.data };
   }
 
+  // 执行已准备调用，并把 handler 异常或无效返回值规范化为 ToolResult。
   async invoke(prepared: PreparedToolCall, context: ToolContext): Promise<ToolResult> {
     if (prepared.error !== undefined) {
       return prepared.error;
@@ -180,6 +203,7 @@ export class ToolRegistry {
   }
 }
 
+// 在运行期收窄扩展 handler 的返回值，阻止无效对象进入消息历史。
 function isToolResult(value: unknown): value is ToolResult {
   // 执行器是扩展边界，运行时复核返回形状后才写入对话历史。
   if (typeof value !== "object" || value === null) {

@@ -22,6 +22,7 @@ import type { PreparedToolCall, ToolContext } from "./core/tools.js";
 
 // 终端边界只要求用户批准会执行宿主命令的工具；读写工作区文件不阻塞交互流程。
 class TerminalAuthorizer implements ToolAuthorizer {
+  // 仅对 execute 工具请求终端批准；非交互或异常一律 fail-closed。
   async authorize(
     prepared: PreparedToolCall,
     _context: ToolContext,
@@ -57,7 +58,9 @@ class TerminalAuthorizer implements ToolAuthorizer {
 }
 
 interface RunArguments {
+  // 解析后映射为冻结 profile 的章节号。
   readonly chapter: number;
+  // 传给 AgentRunner.run 的用户任务。
   readonly prompt: string;
 }
 
@@ -95,6 +98,7 @@ function parseRunArguments(argv: readonly string[], fixedChapter?: number): RunA
   return { chapter, prompt };
 }
 
+// 真实启动路径：加载配置、创建 SDK 适配器、装配 Agent 并输出最终文本。
 async function execute(profile: ChapterProfile, prompt: string): Promise<number> {
   // 工作区和 .env 始终从启动目录解析，避免受模块文件所在位置影响。
   const workspace = resolve(process.cwd());

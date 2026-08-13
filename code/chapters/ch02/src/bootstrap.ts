@@ -22,13 +22,19 @@ const SYSTEM_PROMPT =
 export interface BuildDependencies {
   // 可替换依赖使离线测试无需真实模型、进程或文件系统。
   readonly model: ModelClient;
+  // 工具可访问的工作区根；具体路径安全检查由文件适配器执行。
   readonly workspace: string;
+  // 可选命令进程边界，缺失时构造真实 PowerShellRunner。
   readonly commandRunner?: CommandRunner;
+  // 可选文件系统边界，缺失时构造 NodeWorkspaceFileSystem。
   readonly fileSystem?: WorkspaceFileSystem;
+  // 可选副作用审批边界。
   readonly authorizer?: ToolAuthorizer;
+  // 可选模型请求次数上限。
   readonly maxTurns?: number;
 }
 
+// 根据固定 profile 装配累计工具集；拒绝伪造 profile 防止章节能力越级。
 export function buildAgent(profile: ChapterProfile, dependencies: BuildDependencies): AgentRunner {
   // 只接受固定 profile，随后按章节选择累积工具集。
   if (profileForChapter(profile.chapter) !== profile) {

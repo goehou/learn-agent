@@ -28,10 +28,13 @@ import {
 import type { WorkspaceFileSystem } from "../core/filesystem.js";
 
 // Windows 保留设备名和严格 UTF-8 解码器都属于工作区安全边界。
+// Win32 设备文件名集合；即使带扩展名也不能作为普通工作区路径组件。
 const WINDOWS_DEVICE_NAMES = new Set(["AUX", "CLOCK$", "CON", "CONIN$", "CONOUT$", "NUL", "PRN"]);
+// fatal 模式避免无效字节被替换字符掩盖，读工具必须报告编码错误。
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 
 // 文件系统适配器把 Node 错误归一为工具层可映射的领域错误。
+// 从未知异常中提取 Node 的 code，不能信任任何异常对象一定具有该字段。
 function errorCode(error: unknown): string | undefined {
   if (typeof error !== "object" || error === null) {
     return undefined;
@@ -40,6 +43,7 @@ function errorCode(error: unknown): string | undefined {
   return typeof code === "string" ? code : undefined;
 }
 
+// 将 Node 的宽松异常映射为核心文件系统契约的稳定错误类型。
 function translateFileSystemError(error: unknown): Error {
   // 已知领域错误原样保留，其余 Node 错误映射为稳定的工具层错误类别。
   if (
@@ -66,6 +70,7 @@ function translateFileSystemError(error: unknown): Error {
   return new FileSystemOperationError("File system operation failed");
 }
 
+// 判断候选绝对路径是否仍在根目录内，兼容 Windows 与 POSIX 分隔符语义。
 function isInside(root: string, candidate: string): boolean {
   // relative 结果既非父目录也非绝对路径，才表示 candidate 仍在 root 内。
   const child = relative(root, candidate);
@@ -74,6 +79,7 @@ function isInside(root: string, candidate: string): boolean {
   );
 }
 
+// 拒绝 Windows 非法字符、尾随空格/点以及设备名，防止跨平台路径语义偏差。
 function isWindowsReservedComponent(component: string): boolean {
   // 同时拒绝 Win32 非法字符、尾随点/空格和设备文件名。
   if (component.endsWith(" ") || component.endsWith(".")) {
@@ -101,6 +107,7 @@ function isWindowsReservedComponent(component: string): boolean {
   );
 }
 
+// 将用户路径或 glob 拆成安全相对组件；allowWildcards 只为 glob 的模式字符放行。
 function relativeParts(value: string, label: string, allowWildcards: boolean): string[] {
   // 同时拒绝 POSIX、Win32 和盘符绝对路径，所有工具路径必须相对工作区。
   if (value.length === 0) {
@@ -140,6 +147,7 @@ function relativeParts(value: string, label: string, allowWildcards: boolean): s
   return parts;
 }
 
+// 解析并验证工作区真实路径，作为符号链接检查所依据的可信根。
 async function workspaceRoot(workspace: string): Promise<string> {
   // 真实路径是后续链接逃逸检查的可信根，而不是调用方传入的词法路径。
   const root = await realpath(workspace);
@@ -150,6 +158,7 @@ async function workspaceRoot(workspace: string): Promise<string> {
   return root;
 }
 
+// 向上查找目标最接近的已存在父目录，以便写入新文件前也能验证真实路径边界。
 async function resolvedExistingParent(
   root: string,
   target: string,
@@ -168,6 +177,7 @@ async function resolvedExistingParent(
   }
 }
 
+// 以词法检查和 realpath 检查双重解析相对路径，阻止 junction 与符号链接逃逸。
 export async function safePath(workspace: string, relativePath: string): Promise<string> {
   // 词法检查后再解析现有父目录真实路径，双重防护链接逃逸。
   try {
@@ -189,6 +199,7 @@ export async function safePath(workspace: string, relativePath: string): Promise
   }
 }
 
+// 用共享严格解码器读取文本，文件含非法 UTF-8 时返回领域错误而非替换字符。
 function decodeUtf8(bytes: Uint8Array, relativePath: string): string {
   try {
     return UTF8_DECODER.decode(bytes);
@@ -198,6 +209,7 @@ function decodeUtf8(bytes: Uint8Array, relativePath: string): string {
 }
 
 // 统一换行符后按行截断，输出不依赖宿主系统的行尾格式。
+// 尾随空行不计作内容行，保证 read_file 的 limit 在各平台一致。
 function splitLines(text: string): string[] {
   if (text.length === 0) {
     return [];
@@ -209,6 +221,7 @@ function splitLines(text: string): string[] {
   return lines;
 }
 
+// 将约定的 glob 子集编译为路径级正则；不把未实现模式静默交给宿主 shell。
 function globRegex(pattern: string): RegExp {
   // 仅实现工具约定的 glob 子集，匹配对象始终是标准化的相对路径。
   let source = "^";
@@ -245,6 +258,7 @@ function globRegex(pattern: string): RegExp {
   return new RegExp(`${source}$`, "u");
 }
 
+// 提取第一个通配符前的确定目录，以缩小 glob 扫描范围并先验证该路径。
 async function literalPrefix(root: string, parts: readonly string[]): Promise<readonly string[]> {
   // 从第一个通配符起停止，减少 glob 遍历起点并先验证确定的目录前缀。
   const literal: string[] = [];
@@ -260,8 +274,10 @@ async function literalPrefix(root: string, parts: readonly string[]): Promise<re
   return literal;
 }
 
+// Node fs/promises 对 WorkspaceFileSystem 的实现；所有公开操作都通过 safePath 保持工作区边界。
 export class NodeWorkspaceFileSystem implements WorkspaceFileSystem {
   // 所有 I/O 都经 safePath，不能绕过工作区边界直接操作宿主文件。
+  // 读取后统一行尾，limit 只影响返回内容，不影响磁盘文件。
   async readFile(workspace: string, relativePath: string, limit?: number): Promise<string> {
     try {
       if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0)) {
@@ -279,6 +295,7 @@ export class NodeWorkspaceFileSystem implements WorkspaceFileSystem {
     }
   }
 
+  // 在安全目标的父目录内创建缺失目录并写入 UTF-8 字节，返回写入大小。
   async writeFile(workspace: string, relativePath: string, content: string): Promise<number> {
     try {
       const target = await safePath(workspace, relativePath);
@@ -292,6 +309,7 @@ export class NodeWorkspaceFileSystem implements WorkspaceFileSystem {
     }
   }
 
+  // 读取、查找并只替换第一次精确文本；找不到时抛出 TextNotFoundError。
   async editFile(
     workspace: string,
     relativePath: string,
@@ -317,6 +335,7 @@ export class NodeWorkspaceFileSystem implements WorkspaceFileSystem {
     }
   }
 
+  // 在安全工作区内遍历目录并返回稳定、去重、使用 / 分隔的相对匹配结果。
   async globFiles(workspace: string, pattern: string): Promise<readonly string[]> {
     try {
       const root = await workspaceRoot(workspace);
