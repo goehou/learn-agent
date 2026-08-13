@@ -118,6 +118,7 @@ export const P06: ChapterProfile = Object.freeze({
 });
 
 export const P07: ChapterProfile = Object.freeze({
+  // P07 将目录摘要发现与显式正文加载作为独立能力加入既有受控运行时。
   chapter: 7,
   capabilities: new CapabilitySet([
     "loop",

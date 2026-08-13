@@ -26,8 +26,11 @@ import { toolError, toolSuccess } from "../core/tools.js";
 // 技能目录、工具名与 catalog 上限是 Skill 功能的公共边界。
 export const LOAD_SKILL_TOOL_NAME = "load_skill";
 export const DEFAULT_SKILLS_DIRECTORY = "skills";
+// 目录摘要的条目数上限，防止大量 Skill 占用初始系统提示。
 export const DEFAULT_MAX_CATALOG_ENTRIES = 100;
+// 目录摘要按 UTF-8 字节计量的上限，和条目数共同约束提示词预算。
 export const DEFAULT_MAX_CATALOG_BYTES = 8_000;
+// 工具参数和目录名允许的最大长度，过长名称不会进入路径解析。
 export const MAX_SKILL_NAME_LENGTH = 64;
 
 // Skill 注册表只公开受限目录中的清单摘要，正文必须通过 load_skill 按需读取。
@@ -47,6 +50,7 @@ const loadSkillInputSchema = z
   })
   .strict();
 
+// 通过严格 schema 的加载请求，仅携带目录快照中出现的候选名称。
 export type LoadSkillInput = Readonly<z.output<typeof loadSkillInputSchema>>;
 
 // Skill 领域错误的公共基类，load_skill handler 据此映射为稳定工具错误码。
@@ -69,7 +73,9 @@ export class SkillNotFoundError extends SkillError {}
 
 // 目录中唯一向模型公开的元数据：名称和单行路由描述。
 export interface SkillSummary {
+  // 用于工具路由且必须与 Skill 目录名一致的稳定标识。
   readonly name: string;
+  // 供模型选择是否加载正文的单行摘要，不包含私有指令内容。
   readonly description: string;
 }
 
@@ -82,8 +88,11 @@ interface SkillRecord extends SkillSummary {
 
 // 扫描选项只控制目录摘要的边界，不控制正文内容或文件数量。
 export interface SkillScanOptions {
+  // workspace 内的相对根目录；绝对路径和父级段会在扫描前拒绝。
   readonly skillsDirectory?: string;
+  // 初始 catalog 最多公开的 Skill 数量。
   readonly maxCatalogEntries?: number;
+  // 初始 catalog 渲染文本的 UTF-8 字节预算。
   readonly maxCatalogBytes?: number;
 }
 
@@ -95,11 +104,17 @@ interface ParsedSkillDocument extends SkillSummary {
 // 扫描生成不可变元数据快照；加载时重新校验每一层真实路径。
 export class SkillRegistry {
   // 扫描时记录入口，加载时再次校验真实路径，以防扫描后链接被替换。
+  // 规范化的工作区根，作为所有目录与请求上下文的共同信任边界。
   readonly #workspaceRoot: string;
+  // 已校验的 skills 根；loadSkill 每次使用前仍会重新解析其真实路径。
   readonly #skillsRoot: string;
+  // 完整注册记录只保留在内部，模型只能通过 names/catalogEntries 发现可用 Skill。
   readonly #records: ReadonlyMap<string, SkillRecord>;
+  // 已注册名称的稳定排序快照，供组合根和测试枚举能力。
   readonly names: readonly string[];
+  // 已受条目和字节预算限制的公开摘要快照。
   readonly catalogEntries: readonly SkillSummary[];
+  // 绑定此注册表工作区的只读工具，handler 会核验 ToolContext 归属。
   readonly toolDefinition: ToolDefinition<LoadSkillInput>;
 
   private constructor(
@@ -211,6 +226,7 @@ export class SkillRegistry {
   }
 
   // 目录是给模型的纯文本摘要；只包含名称和描述，正文绝不进入该结果。
+  // 将已截断快照渲染为系统提示片段；不触发额外文件读取。
   renderCatalog(): string {
     return this.catalogEntries
       .map((entry) => `- **${entry.name}**: ${entry.description}`)
@@ -219,6 +235,7 @@ export class SkillRegistry {
 
   // 显式加载：重新解析 workspace、Skill 目录和 manifest 的真实路径，
   // 防止扫描之后发生链接替换或文件内容变化。
+  // 按名称取回正文；成功前必须再次确认记录仍在原受信任路径下。
   async loadSkill(name: string): Promise<string> {
     // 读取请求边界重新解析 workspace、Skill 目录和 manifest 的物理位置。
     validateSkillName(name);

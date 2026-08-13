@@ -55,6 +55,7 @@ export function buildAgent(profile: ChapterProfile, dependencies: BuildDependenc
   const standardTools = createStandardTools(profile, commandRunner, fileSystem);
   const tools = standardTools.tools;
   const todoTracker = standardTools.todoTracker;
+  // P07 构建时固定可发现目录；每个 load_skill 请求仍重新验证物理路径。
   const skillRegistry = profile.capabilities.has("skills")
     ? // 章节组装阶段扫描一次；运行时加载仍做路径复查。
       SkillRegistry.scan(dependencies.workspace)
@@ -91,6 +92,7 @@ export function buildAgent(profile: ChapterProfile, dependencies: BuildDependenc
     todoTracker === undefined ? SYSTEM_PROMPT : `${SYSTEM_PROMPT}${TODO_SYSTEM_PROMPT}`;
   if (skillRegistry !== undefined) {
     // 目录摘要作为构建期快照进入 System Prompt；正文仍由 load_skill 按需加载。
+    // 空目录也会得到明确提示，避免模型猜测未公开的 Skill 存在。
     const catalog = skillRegistry.renderCatalog();
     systemPrompt = `${systemPrompt}${SKILLS_SYSTEM_PROMPT}${catalog.length === 0 ? EMPTY_SKILLS_CATALOG : catalog}`;
   }
