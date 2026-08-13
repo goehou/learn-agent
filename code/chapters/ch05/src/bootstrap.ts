@@ -23,12 +23,19 @@ const TODO_SYSTEM_PROMPT =
 export interface BuildDependencies {
   // 外部边界均可注入，离线测试无需启动真实进程或网络客户端。
   readonly model: ModelClient;
+  // workspace 同时传给工具上下文和文件系统边界，是一次运行的根目录。
   readonly workspace: string;
+  // 未注入时使用真实 PowerShell；测试可替换为可控执行器。
   readonly commandRunner?: CommandRunner;
+  // 未注入时创建 Node 文件系统适配器，调用方可提供内存实现隔离副作用。
   readonly fileSystem?: WorkspaceFileSystem;
+  // P03 以后处理 ask 决策的外部审批边界。
   readonly approvalProvider?: ApprovalProvider;
+  // P03 以后记录允许、拒绝与失败结果的审计边界。
   readonly auditSink?: AuditSink;
+  // P04 以后可注入的生命周期扩展注册表。
   readonly hooks?: HookRegistry;
+  // 覆盖循环上限仅用于调用方控制成本和测试终止条件。
   readonly maxTurns?: number;
 }
 
