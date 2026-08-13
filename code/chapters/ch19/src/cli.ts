@@ -254,6 +254,8 @@ async function execute(profile: ChapterProfile, prompt: string): Promise<number>
 }
 
 function createMcpRuntime(): McpRuntime {
+  // CLI 在本地定义 server allowlist、effect 与超时，再注入协议适配器；
+  // 远程 server 只能发布与这份静态 policy 精确一致的工具集合。
   // 本地演示允许 allowlist 固定声明四个远程工具及其 effect；生产应由配置提供。
   const policies = Object.freeze([
     new McpToolPolicy({ remoteName: "lookup", effect: "read" }),
