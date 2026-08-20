@@ -33,14 +33,22 @@ const MAX_WINDOWS_LOCK_RACE_RETRIES = 100;
 // 进程内互斥尾链：同进程并发回合先排队，再尝试跨进程文件锁。
 const PROCESS_LOCK_TAILS = new Map<string, Promise<void>>();
 
+// 三个 side-query 输出都直接进入 JSON.parse()，不做围栏剥离或子串截取；
+// 因此系统提示必须明确禁止 Markdown 代码块和解释文字，降低真实模型附加围栏的概率。
+const NO_FENCE_INSTRUCTION =
+  "直接输出纯 JSON 文本，禁止使用 Markdown 代码块或反引号包裹，禁止输出任何解释文字。";
 const SELECTOR_SYSTEM_PROMPT = `从目录中选择与查询直接相关的记忆名称。
-只能返回 JSON 字符串数组，不得调用工具；没有相关项时返回 []。`;
+只能返回 JSON 字符串数组，不得调用工具；没有相关项时返回 []。
+${NO_FENCE_INSTRUCTION}`;
 const EXTRACTOR_SYSTEM_PROMPT = `从会话中提取值得跨会话保留的新记忆。
 只能返回 JSON 数组，不得调用工具。每项必须且只能包含 name、type、description、body；
-type 只能是 user、feedback、project、reference，没有新记忆时返回 []。`;
+type 只能是 user、feedback、project、reference，没有新记忆时返回 []。
+name 必须是安全的小写 slug：只能包含小写字母、数字，多个词之间用单个连字符 - 分隔，禁止下划线、空格、大写字母或中文字符。
+${NO_FENCE_INSTRUCTION}`;
 const CONSOLIDATOR_SYSTEM_PROMPT = `整理给定记忆，合并重复或冲突内容，不得调用工具。
 只能返回 JSON object，必须且只能包含 source_names 和 records；
-source_names 是被替换的原记忆名称，records 是非空的新记忆数组。`;
+source_names 是被替换的原记忆名称，records 是非空的新记忆数组。
+${NO_FENCE_INSTRUCTION}`;
 
 export class MemoryStoreError extends Error {
   // 文件记忆的名称、索引和正文必须作为一个受锁保护的持久化集合维护。
