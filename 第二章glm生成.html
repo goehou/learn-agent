@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 2 章 · 给 Agent 加一个工具,只需要加一行</title>
+<style>
+  :root{
+    --bg:#0f1117; --surface:#1a1d27; --surface2:#232733; --border:#2e3340;
+    --text:#e6e8ee; --muted:#9aa0ac; --faint:#6b7280;
+    --accent:#7c9cff; --accent2:#b07cff; --teal:#5ec8b6;
+    --ok:#4ade80; --bad:#f87171; --warn:#fbbf24;
+    --code-bg:#11141c;
+  }
+  *{box-sizing:border-box} html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code","SFMono-Regular",Consolas,"Courier New",monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0} pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600;letter-spacing:.02em}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem;white-space:nowrap}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px} .topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap} .topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px} .topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s} .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none} .btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.55rem;line-height:1.3} .hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap} .hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px} h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600} .card>summary::-webkit-details-marker{display:none} .card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)} .card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px} .card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem} th,td{border:1px solid var(--border);padding:8px 10px;text-align:left} th{background:var(--surface2);color:var(--muted);font-weight:600} tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem} .callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)} .callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em} .callout.warn .lab{color:var(--warn)} .callout.ok .lab{color:var(--ok)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)} .keyformula code{font-weight:700;color:var(--accent)}
+
+  /* registry demo */
+  .reg{border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden}
+  .reg-grid{display:grid;grid-template-columns:1fr 1fr}
+  .reg-side{padding:16px} .reg-side.left{border-right:1px solid var(--border)}
+  .reg-side h4{margin:0 0 10px;font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .tool-btn{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);cursor:pointer;margin:6px 0;font-size:.85rem;transition:.15s}
+  .tool-btn:hover:not(.done){border-color:var(--accent)} .tool-btn.done{opacity:.5;cursor:default;border-style:dashed}
+  .tool-btn .ic{font-size:1rem} .tool-btn .nm{font-family:monospace;font-weight:700;color:var(--accent)} .tool-btn .st{margin-left:auto;font-size:.75rem;color:var(--ok)}
+  .reg-list{min-height:120px} .reg-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--border);border-radius:7px;margin:5px 0;background:var(--code-bg);font-family:monospace;font-size:.82rem;animation:fadein .3s}
+  .reg-item .efx{margin-left:auto;font-size:.7rem;padding:1px 6px;border-radius:999px} .efx.read{background:rgba(94,200,182,.15);color:var(--teal)} .efx.write{background:rgba(251,191,36,.15);color:var(--warn)} .efx.execute{background:rgba(248,113,113,.15);color:var(--bad)}
+  .loop-box{border:1px dashed var(--border);border-radius:8px;padding:12px;margin-top:12px;font-size:.8rem;font-family:monospace}
+  .loop-box .unchanged{color:var(--ok);font-weight:700} .loop-box .changed{color:var(--bad);font-weight:700}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* safePath playground */
+  .sp{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .sp-input{display:flex;gap:8px;flex-wrap:wrap}
+  .sp-input input{flex:1;min-width:200px;padding:9px 12px;background:var(--code-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:monospace;font-size:.88rem}
+  .sp-input input:focus{outline:none;border-color:var(--accent)}
+  .sp-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .chip{cursor:pointer;padding:4px 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface2);color:var(--muted);font-family:monospace;font-size:.78rem} .chip:hover{border-color:var(--accent);color:var(--text)}
+  .sp-result{margin-top:14px;padding:14px;border-radius:10px;border:1px solid var(--border);font-size:.88rem;display:none} .sp-result.show{display:block}
+  .sp-result.ok{background:rgba(74,222,128,.08);border-color:rgba(74,222,128,.3);color:var(--ok)} .sp-result.bad{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.3);color:var(--bad)}
+  .sp-result .verdict{font-weight:700;margin-bottom:4px} .sp-result .rule{color:var(--muted);font-size:.82rem}
+
+  /* quiz */
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)} .q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px} .q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s} .opt:hover{border-color:var(--accent);background:var(--surface2)} .opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)} .opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)} .opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none} .explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)} .explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none} .quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem} .pagenav a:hover{border-color:var(--accent);text-decoration:none} .pagenav a.next{text-align:right} .pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+  @media(max-width:640px){.reg-grid{grid-template-columns:1fr}.reg-side.left{border-right:none;border-bottom:1px solid var(--border)}.hero h1{font-size:1.3rem}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 2 章</span>
+  <span class="title">给 Agent 加一个工具,只需要加一行 <span class="muted">· Agent架构实操二</span></span>
+  <nav><a href="#guide">导读</a><a href="#glossary">术语</a><a href="#concepts">概念</a><a href="#reg">注册台</a><a href="#safe">路径检查</a><a href="#run">运行</a><a href="#recap">小结</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+
+<main>
+  <div class="hero">
+    <h1>给 Agent 加一个工具,只需要加一行</h1>
+    <div class="sub">只有 shell 不够:模型想「读文件」,程序却得把意图翻译成 PowerShell。本章加四个专用工具 —— read / write / edit / glob,而 <b>Agent Loop 一行都不用改</b>。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 15 分钟</span>
+      <span class="pill">🔧 +4 工具 → P02 共 5 个</span>
+      <span class="pill">🛡 safePath 双重路径边界</span>
+      <span class="pill">🧪 47 个离线测试</span>
+    </div>
+  </div>
+
+  <section id="guide">
+    <h2><span class="num">🎯</span> 本章导读</h2>
+    <div class="sec-desc">读完这一章,你应该能用一句话回答下面每个问题。</div>
+    <div class="callout">
+      <span class="lab">读完能做到</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>独立给 Agent 加一个新工具,并说清为什么不用改 Agent Loop。</li>
+        <li>用 Zod 写出一份「模型看到的说明」和「运行时校验规则」同源的输入 schema。</li>
+        <li>说出为什么 <code>edit_file</code> 不能接受行号,以及模型正确的编辑工作流是什么。</li>
+        <li>解释 <code>safePath</code> 的两道检查各拦住什么,并说明为什么第二道必须访问磁盘。</li>
+        <li>跑通第 2 章,让 Agent 只用文件工具完成一次「写 → 改 → 读 → 找」的完整链路。</li>
+      </ol>
+    </div>
+
+    <details class="card">
+      <summary>你需要先具备什么 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th>需要</th><th>程度</th></tr>
+          <tr><td>第 1 章</td><td><b>必须</b>。要理解 ToolRegistry、ToolResult、tool_call_id 配对和审批边界</td></tr>
+          <tr><td>TypeScript</td><td>能看懂 <code>interface</code>、<code>async/await</code>、<code>instanceof</code> 判断</td></tr>
+          <tr><td>Zod</td><td>不需要。本章用到的写法都会解释</td></tr>
+          <tr><td>文件系统概念</td><td>知道「相对路径 / 绝对路径」「符号链接」大致是什么</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>建议的阅读路线 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>本章导读(你在这)
+  ↓
+① 先定义可观察结果        ← 本章的验收标准,9 条
+  ↓
+② 一个完整例子            ← 模型怎么用四个工具走完一次任务
+  ↓
+③ ToolRegistry            ← 「加一行」到底加在哪
+  ↓
+④ 文件系统边界 + Zod      ← 依赖方向、同源 schema、描述也是上下文
+  ↓
+⑤ safePath                ← 本章安全性的核心,两道检查
+  ↓
+⑥ 四个工具逐个看          ← read / write / edit / glob 各自的取舍
+  ↓
+⑦ 错误映射 + profile      ← 稳定错误码、P01 与 P02 的差别
+  ↓
+⑧ 配对与权限边界          ← 多工具单轮的硬规则、本章故意留的缺口
+  ↓
+⑨ 运行、验证与小结        ← 动手 + 排错表 + 自测题</code></pre>
+        <div class="callout"><span class="lab">提示</span> 想先跑起来?直接跳到 <a href="#run">运行第 2 章</a>,那一节是自包含的步骤清单,跑通后再回头读 <a href="#concepts">核心概念</a>。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="glossary">
+    <h2><span class="num">📇</span> 术语速查</h2>
+    <div class="sec-desc">本章第一次出现的词。先扫一眼,正文里遇到不认识的词回来查即可。<b>不用背</b>。</div>
+    <table>
+      <tr><th style="width:26%">术语</th><th>一句话解释</th></tr>
+      <tr><td><b>ToolDefinition</b></td><td>一个工具的完整声明:名字、描述、输入 schema、副作用类别、handler。五件事写在一个对象里</td></tr>
+      <tr><td><b>Zod</b></td><td>TypeScript 的运行时校验库。一份 schema 既能校验数据,又能导出 JSON Schema</td></tr>
+      <tr><td><code>z.strictObject</code></td><td>Zod 的严格对象: schema 里没声明的字段一律拒绝,不是忽略</td></tr>
+      <tr><td><code>.describe()</code></td><td>给 Zod 字段加说明文字。它会进入导出的 JSON Schema,被模型读到</td></tr>
+      <tr><td><b>静态前缀 / KV Cache</b></td><td>请求里每轮不变的开头部分(<code>system</code> + <code>tools</code>)。字节稳定时服务端可复用计算结果,省钱省延迟</td></tr>
+      <tr><td><b>safePath</b></td><td>把「工作区相对路径」翻译成安全绝对路径的函数。翻译不了就拒绝,绝不猜测修复</td></tr>
+      <tr><td><b>junction / 符号链接</b></td><td>指向别处的目录「快捷方式」。文本路径看着在工作区内,真实位置可能在外面</td></tr>
+      <tr><td><b>NTFS ADS</b></td><td>Windows 的 Alternate Data Stream,靠路径里的冒号触发,例如 <code>file:stream</code></td></tr>
+      <tr><td><b>Windows 保留名</b></td><td><code>NUL</code>、<code>CON</code>、<code>COM1</code>、<code>LPT9</code> 等。它们指向设备而不是文件</td></tr>
+      <tr><td><b>effect</b>(副作用类别)</td><td>工具自我声明的影响范围:<code>read</code> / <code>write</code> / <code>execute</code>。第 2 章只是元数据,第 3 章才参与决策</td></tr>
+      <tr><td><b>WorkspaceFileSystem</b></td><td>core 层声明的文件能力接口。feature 只认这个接口,不认 Node</td></tr>
+      <tr><td><b>profile(P01/P02)</b></td><td>章节能力白名单。P02 = P01 + <code>tool_registry</code> + <code>files</code></td></tr>
+    </table>
+  </section>
+
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击卡片展开。每个概念都对应正文一段实际逻辑。</div>
+
+    <details class="card" open>
+      <summary>1 · 一个完整例子:四个工具怎么串起来 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>用户输入:<b>「只使用文件工具:写入 <code>demo/note.txt</code>,内容为 alpha;把第一处 alpha 改成 gamma;读取文件并用 glob 列出 demo/*.txt」</b></p>
+        <table>
+          <tr><th>轮</th><th>工具</th><th>arguments</th><th>回填结果</th></tr>
+          <tr><td>1</td><td><code>write_file</code></td><td><code>{path,demo/note.txt,content,alpha}</code></td><td><code>Wrote 5 UTF-8 bytes…</code></td></tr>
+          <tr><td>2</td><td><code>edit_file</code></td><td><code>{old_text,alpha,new_text,gamma}</code></td><td><code>Edited demo/note.txt</code></td></tr>
+          <tr><td>3</td><td><code>read_file</code></td><td><code>{path,demo/note.txt}</code></td><td><code>gamma</code></td></tr>
+          <tr><td>4</td><td><code>glob</code></td><td><code>{pattern,demo/*.txt}</code></td><td><code>demo/note.txt</code></td></tr>
+          <tr><td>5</td><td>—(无工具调用)</td><td>—</td><td>模型给出最终文本,循环退出</td></tr>
+        </table>
+        <div class="callout warn"><span class="lab">换成只有 shell 有多难</span> 得写 <code>Set-Content</code> + <code>-Encoding utf8</code> + <code>-replace</code>(正则!)、处理目录不存在、忘了 <code>-NoNewline</code>、引号转义……每一处都可能悄悄出错。<b>加专用工具不是为了少打字,是把隐患从「模型每次都要想起来」变成「工具默认就对」</b>。</div>
+        <p>失败也是完整链路的一部分:模型试图读 <code>../secret.txt</code>,不会抛异常,而是回填 <code>Error [path_escape]: …</code>。模型看到 <code>path_escape</code> 就知道换个路径——工具失败是数据,不是异常。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>2 · ToolRegistry:循环只负责分发 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>如果把工具写死在循环里,第二个工具出现就开始堆 <code>if (call.name === "shell")</code> 分支——每加一个工具都要改循环。反例:</p>
+        <pre><code>// 反例:不要让 Agent Loop 认识具体工具
+if (call.name === "shell") return runShell(call.arguments);
+if (call.name === "read_file") return readFile(call.arguments);</code></pre>
+        <p>循环只认识「一次调用返回一个结果」这个抽象协议。注册表负责四件事:</p>
+        <ol>
+          <li>按名称查找工具;</li>
+          <li>把 OpenAI 返回的 JSON 字符串解析成 object;</li>
+          <li>用 Zod 严格校验参数;</li>
+          <li>调用与 schema 绑定在同一个 <code>ToolDefinition</code> 里的 handler。</li>
+        </ol>
+        <p>未知工具、坏 JSON、错误类型、多余字段都会在 handler 执行前变成结构化错误。<b>校验在 <code>prepare()</code>,副作用在 <code>invoke()</code>,顺序不能反</b>——否则先写文件再校验就来不及了。</p>
+        <div class="callout"><span class="lab">「加一行」的准确含义</span> 工具定义完成后,只需 <code>registry.register(createReadFileTool(fileSystem))</code>,不必改 Loop,也不必维护另一张 handler 表。对比:写死在循环里要改 3~4 处,用注册表只动 1 处(<code>register</code>)。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>3 · 文件系统做成边界(依赖方向) <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>文件操作是外部边界。feature 不应直接创建 Node 文件系统适配器,否则业务层反向依赖具体实现——大白话:<b>工具 handler 里不要出现 <code>import { readFile } from "node:fs/promises"</code></b>。</p>
+        <pre><code>bootstrap
+   ├─ 创建 NodeWorkspaceFileSystem
+   └─ 注入 features
+features ──依赖──> core/WorkspaceFileSystem   (接口)
+adapters ──实现──> core/WorkspaceFileSystem</code></pre>
+        <p>直接 import Node fs 的代价:测「路径越界」要在磁盘上真造一个 junction;测「非法 UTF-8」要造坏字节文件;测试真会写文件、跑完得清理。通过接口注入:替身直接抛领域错误,只在内存里记一笔。测试注入替身,生产注入 Node 适配器,feature 无需知道区别。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>4 · Zod 严格输入:schema 同源 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p><code>z.strictObject</code> 拒绝 schema 外字段。约束都是实际契约:<code>path</code>/<code>old_text</code>/<code>pattern</code> 不能为空;<code>limit</code> 必须是大于 0 的整数(<code>true</code>、<code>"2"</code>、<code>0</code>、<code>-1</code> 都非法);<code>content</code> 和 <code>new_text</code> 允许空串(清空/删除是有效操作)。</p>
+        <table>
+          <tr><th>模型传来的 arguments</th><th>结果</th><th>原因</th></tr>
+          <tr><td><code>{"path":"note.txt"}</code></td><td>通过</td><td><code>limit</code> 可选</td></tr>
+          <tr><td><code>{"path":"note.txt","limit":"50"}</code></td><td>拒绝</td><td>字符串不是 number,<b>不做隐式转换</b></td></tr>
+          <tr><td><code>{"path":"note.txt","limit":0}</code></td><td>拒绝</td><td><code>.positive()</code>,读 0 行无意义</td></tr>
+          <tr><td><code>{"path":"note.txt","encoding":"gbk"}</code></td><td>拒绝</td><td><code>strictObject</code>:多余字段,不是忽略</td></tr>
+          <tr><td><code>{}</code></td><td>拒绝</td><td>缺必填字段 <code>path</code></td></tr>
+        </table>
+        <div class="callout warn"><span class="lab">不要替模型猜意图</span> <code>"50"</code> 拒绝而不是转成 50——隐式转换看着「宽容」,实际掩盖模型的错误,它下次还会传字符串。多余字段拒绝而不是忽略——静默忽略等于骗它「我处理了」。契约之外的输入一律明确失败。</div>
+        <div class="callout ok"><span class="lab">同源</span> <code>parameters: z.toJSONSchema(definition.inputSchema)</code> 直接生成 OpenAI tool schema。<code>.describe()</code> 也随它进入 schema,模型无需额外文档。模型看到的契约和 handler 接受的契约来自同一源头。</div>
+        <table>
+          <tr><th>工具</th><th>输入</th><th>effect</th><th>成功结果</th></tr>
+          <tr><td><code>read_file</code></td><td>path, limit?</td><td>read</td><td>文件文本</td></tr>
+          <tr><td><code>write_file</code></td><td>path, content</td><td>write</td><td>写入字节数</td></tr>
+          <tr><td><code>edit_file</code></td><td>path, old_text, new_text</td><td>write</td><td>编辑确认</td></tr>
+          <tr><td><code>glob</code></td><td>pattern</td><td>read</td><td>匹配路径列表</td></tr>
+        </table>
+        <p>effect 在第 2 章只是结构化元数据,<b>第 3 章会用它参与权限决策</b>。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>5 · 描述也是模型上下文(不只是文档) <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>工具 <code>description</code> 和参数描述不是文档,而是模型选工具时<b>实际读到的上下文</b>。在请求结构上,工具定义位于 API 顶层 <code>tools</code> 字段,与 <code>system</code> 共同构成每轮不变的<b>静态前缀</b>。</p>
+        <div class="callout warn"><span class="lab">KV Cache 硬约束</span> 缓存依赖前缀的字节稳定性。每轮动态重排工具、改描述、塞时间戳,前缀就变,之前缓存的中间结果作废。<code>ToolRegistry</code> 按注册顺序稳定导出 + <code>snapshot()</code> 禁止中途改,正是为稳定前缀打基础。</div>
+        <p>「模型不需要猜测」四条检查:做什么 / 什么时候用 / 返回什么 / 失败怎么办。例:<code>edit_file</code> 描述要求「先读取文件,不接收行号」,模型就不会凭记忆拼旧文本。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>6 · safePath:先守住 workspace(两关) <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>公开契约是「工作区相对路径」,运行时<b>不猜测不修复</b>危险输入。直接拒绝:<code>../secret.txt</code>、<code>nested/../secret.txt</code>、<code>C:\secret.txt</code>、<code>/etc/passwd</code>、<code>NUL.txt</code>、<code>nested/CON.log</code>、<code>file:stream</code>、<code>trailing.</code>。</p>
+        <p><b>第一关 词法检查</b>(不访问磁盘):拒绝空值、NUL、绝对路径、盘符、<code>..</code>、Windows 保留组件(CON/NUL/COMx/LPTx)、冒号(ADS)、尾随点。</p>
+        <p><b>第二关 解析已存在父路径</b>:若 <code>workspace/escape</code> 是指向工作区外的 junction/符号链接,<code>escape/secret.txt</code> 文本看似在内、真实路径却在外——只解析已存在的父路径(因为 <code>write_file</code> 允许创建还不存在的文件)重新拼出真实路径,不在 root 内就立即失败。</p>
+        <div class="callout warn"><span class="lab">为什么必须访问磁盘</span> 第一关看字符串,<code>"escape/id_rsa"</code> 每项都合法、拼出来也在 workspace 内,会<b>放行</b>。只有真正解析磁盘才发现 <code>workspace\escape</code> 指向 <code>C:\Users\你\.ssh</code>——呼应变量名:existing.lexical(文本父路径) / existing.physical(真实位置) / resolved(最终路径)。</div>
+        <div class="callout"><span class="lab">注意边界</span> 这不是完整沙箱,只保护四个文件工具。<code>shell</code> 的 cwd 虽是 workspace,PowerShell 仍能用绝对路径、访问网络、启动子进程。审批 ≠ 隔离。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>7 · 三个工具的精确语义 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p><b>read_file</b>:严格 UTF-8 解码,非法字节返回 <code>invalid_utf8</code>(不悄悄替换 �,因为 � 一旦进入上下文模型就看到了错误的文件内容)。执行顺序每步都是<b>先否决再前进</b>:校验 limit → safePath → 读字节 → 严格解码 → 按 limit 截断。<code>limit</code> 截断时尾部标注 <code>... (N more lines)</code>,避免模型猜内容是否被截。</p>
+        <p><b>write_file</b>:自动建父目录(<code>mkdir recursive</code>),返回 <code>bytes.byteLength</code> 而非字符串长度。<code>你好</code> 的 length=2,但 UTF-8 实际 6 字节——结果与磁盘一致。</p>
+        <p><b>edit_file</b>:<b>不接受行号</b>——行号随每次编辑整体偏移,模型很容易拿旧行号改错位(删掉第 2 行后,原第 4 行变成第 3 行)。要求旧文本+新文本,只替换第一处精确匹配,找不到<b>不写回</b>文件(所以重试是安全的)。读入整段只替换匹配片段,未改部分的 CRLF 不会被顺带改成 LF。</p>
+        <div class="callout"><span class="lab">模型正确工作流</span><pre><code>✅ read_file → 拿到精确片段 → edit_file
+❌ 凭记忆/猜测拼 old_text → text_not_found</code></pre>第二种失败率很高,因为模型记忆里的代码往往「大概长这样」。这也是为什么 <code>.describe()</code> 里明确写了「先读取文件,再提供精确文本」。</div>
+        <p><b>glob</b>:返回 <code>/</code> 风格稳定排序的相对路径,无匹配返回 <code>(no matches)</code>(而不是空串——空串和「工具坏了」没法区分)。模式本身也必须相对;通配符前的固定前缀先过 safePath,遍历不进符号链接目录,每个匹配结果再查真实路径。<b>三道防线</b>,因为 glob 要遍历一整片目录树,检查点从一个变成成百上千个。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>8 · handler:只在工具边界映射预期错误 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>Node 适配器先把 <code>ENOENT</code>、<code>EISDIR</code> 等系统错误翻译成 core 定义的领域错误。handler 在工具边界把这些预期失败转成<b>稳定错误码</b>,不把本机绝对路径或堆栈泄漏给模型。</p>
+        <table>
+          <tr><th>error_code</th><th>含义</th><th>模型看到后应该做什么</th></tr>
+          <tr><td><code>path_escape</code></td><td>路径违反 workspace 边界</td><td>换成工作区内的相对路径,不要重试同一路径</td></tr>
+          <tr><td><code>file_not_found</code></td><td>目标文件不存在</td><td>先 <code>glob</code> 找真实路径,或改用 <code>write_file</code> 创建</td></tr>
+          <tr><td><code>text_not_found</code></td><td>精确旧文本不存在</td><td>重新 <code>read_file</code>,用读到的原文再编辑</td></tr>
+          <tr><td><code>invalid_path</code></td><td>文件与目录类型不符</td><td>目标是目录,换一个具体文件</td></tr>
+          <tr><td><code>invalid_utf8</code></td><td>文件不是合法 UTF-8</td><td>这是二进制文件,不要再尝试文本读取</td></tr>
+          <tr><td><code>filesystem_error</code></td><td>其他受控文件系统失败</td><td>换路径或换方案,不要原样重试</td></tr>
+        </table>
+        <div class="callout warn"><span class="lab">结尾的 throw error 不是漏写</span> 这个 <code>catch</code> 只翻译<b>能列举出名字的、预期会发生的</b>错误。冒出预料之外的 bug,把它转成 <code>filesystem_error</code> 等于把真实故障伪装成「正常失败」,模型会以为换路径重试就行,真 bug 被永久掩盖。<b>catch 只处理你能列出名字的错误;列不出名字的,你没资格决定怎么处理它。</b></div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>9 · P01 与 P02 只差构建期工具集 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>第 1 章和第 2 章的智能体,代码上只差一个工具集合。P02 构建是「先复用,再追加」:</p>
+        <pre><code>export const P01 = Object.freeze({
+  chapter: 1,
+  capabilities: new CapabilitySet(["loop", "powershell"]),
+});
+export const P02 = Object.freeze({
+  chapter: 2,
+  capabilities: new CapabilitySet(["loop", "powershell", "tool_registry", "files"]),
+});
+// createChapterTwoTools 第一行就调用 createChapterOneTools(…),
+// 所以 P02 一定包含 P01 的全部行为——这是结构保证。</code></pre>
+        <table>
+          <tr><th></th><th>P01</th><th>P02</th></tr>
+          <tr><td>模型看到的工具</td><td><code>shell</code></td><td>shell + 四个文件工具</td></tr>
+          <tr><td>Agent Loop 代码</td><td>同一份</td><td><b>同一份</b></td></tr>
+          <tr><td>消息历史处理</td><td>同一份</td><td><b>同一份</b></td></tr>
+        </table>
+        <div class="callout"><span class="lab">能力是构建期确定的</span> 组合根按 <code>profile.chapter</code> 选好注册表,之后这一轮运行里工具集合不再变化——这样每轮发的 <code>tools</code> 数组才稳定(回到静态前缀),测试也才能断言「P01 只暴露 shell」。运行中动态增减工具是第 19 章 MCP 的事。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>10 · 一轮多个工具调用仍然必须配对 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>工具从 1 个变成 5 个,模型可能<b>在一轮里同时请求好几个工具</b>。当前实现按顺序执行,结果历史必须严格配对:</p>
+        <pre><code>assistant(tool_calls: write-1, read-1)
+tool(tool_call_id: write-1, 写入结果)
+tool(tool_call_id: read-1, 读取结果)</code></pre>
+        <p>不能漏掉失败调用的结果,也不能在两个 tool 结果之间插入新的 user / assistant 消息。<b>违反配对直接崩</b>:</p>
+        <table>
+          <tr><th>错法</th><th>结果</th></tr>
+          <tr><td>少返回一个结果</td><td><code>missing tool results for ids: [write-1]</code></td></tr>
+          <tr><td>配对中间插了别的消息</td><td>结构被破坏,OpenAI 侧也会拒绝</td></tr>
+          <tr><td>返回没人要的结果</td><td><code>unexpected tool result id: read-1</code></td></tr>
+        </table>
+        <div class="callout warn"><span class="lab">为什么串行而不是并发</span> 读写同一文件存在顺序依赖。并发可能读到旧内容或写了一半的文件——不确定。没有并发安全契约前不擅自并发;第 13 章引入后台任务时才正面处理。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>11 · 第 2 章的权限边界(故意留的缺口) <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>本章有一个<b>刻意的不对称</b>:</p>
+        <pre><code>shell "Remove-Item note.txt"    → 弹审批,不敲 y 就不执行
+write_file "note.txt" "..."     → 直接执行,你什么都看不到</code></pre>
+        <p>两者都能改文件,但只有一个要审批。因为第 2 章还没有权限系统,只有一个硬编码的「shell 需要审批」;<code>effect: "write"</code> 这个标签已经贴上了,但<b>没有任何代码去读它</b>。</p>
+        <table>
+          <tr><th>工具</th><th>有 safePath 保护吗</th></tr>
+          <tr><td>read / write / edit / glob</td><td>有,路径必须落在 workspace 内</td></tr>
+          <tr><td><code>shell</code></td><td><b>没有</b>,PowerShell 写 <code>C:\Windows\…</code> 完全可以,cwd 只是起始目录</td></tr>
+        </table>
+        <div class="callout warn"><span class="lab">两套规则并存</span> 文件工具靠代码边界,shell 靠人工审批。<b>不要把前者的保证套到后者头上</b>——这也是第 3 章要做统一权限系统的原因。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="reg">
+    <h2><span class="num">▶️</span> 交互演示 1:工具注册台</h2>
+    <div class="sec-desc">点左边按钮注册工具,看 P01→P02 的工具集如何增长,而右边的 Agent Loop 代码<b>始终不变</b>。</div>
+    <div class="reg">
+      <div class="reg-grid">
+        <div class="reg-side left">
+          <h4>注册工具(点击)</h4>
+          <div id="toolBtns">
+            <button class="tool-btn done" data-tool="shell"><span class="ic">⚡</span><span class="nm">shell</span><span class="st">✓ 已注册(P01)</span></button>
+            <button class="tool-btn" data-tool="read_file"><span class="ic">📖</span><span class="nm">read_file</span><span class="st"></span></button>
+            <button class="tool-btn" data-tool="write_file"><span class="ic">✏️</span><span class="nm">write_file</span><span class="st"></span></button>
+            <button class="tool-btn" data-tool="edit_file"><span class="ic">🔧</span><span class="nm">edit_file</span><span class="st"></span></button>
+            <button class="tool-btn" data-tool="glob"><span class="ic">🔎</span><span class="nm">glob</span><span class="st"></span></button>
+          </div>
+          <button class="btn" id="regReset" style="margin-top:10px;width:100%">↺ 重置为 P01</button>
+        </div>
+        <div class="reg-side">
+          <h4>ToolRegistry 快照(<span id="profName">P01</span>)</h4>
+          <div class="reg-list" id="regList"></div>
+          <div class="loop-box">
+            <div style="color:var(--muted);margin-bottom:6px">// AgentRunner.run() 循环片段</div>
+            for (const call of assistant.toolCalls) {<br>
+            &nbsp;&nbsp;const prepared = tools.<b>prepare</b>(call);<br>
+            &nbsp;&nbsp;const result = await tools.<b>invoke</b>(prepared, context);<br>
+            &nbsp;&nbsp;history.push(toolMessage(result.content, call.id));<br>
+            }<br>
+            <span id="loopState" class="unchanged">✓ 循环代码:0 处修改</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="safe">
+    <h2><span class="num">🛡</span> 交互演示 2:safePath 路径检查器</h2>
+    <div class="sec-desc">输入一个相对路径(假装 workspace 是 <code>D:\proj</code>),看 safePath 放行还是拒绝、命中的是哪条规则。点芯片快速试。</div>
+    <div class="sp">
+      <div class="sp-input">
+        <input id="pathInput" placeholder="例如:src/main.ts 或 ../secret.txt" value="../secret.txt">
+        <button class="btn primary" id="pathCheck">检查</button>
+      </div>
+      <div class="sp-chips" id="chips"></div>
+      <div class="sp-result" id="pathResult"></div>
+    </div>
+  </section>
+
+  <section id="run">
+    <h2><span class="num">🚀</span> 运行第 2 章</h2>
+    <div class="sec-desc">前置条件和第 1 章完全一样(<code>npm ci</code> + 三个 .env 变量)。下面四步,每步都给出预期结果。</div>
+
+    <details class="card" open>
+      <summary>第 1 步 · 先跑离线测试 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>Set-Location 'F:\笔记\Agent实操\code'
+npm run test:ch02</code></pre>
+        <pre><code> Test Files  8 passed (8)
+      Tests  47 passed (47)</code></pre>
+        <p>比第 1 章多了 2 个文件、17 个测试——新增的正是文件工具和路径边界。不需要 API Key,不发网络请求。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 2 步 · 跑一个完整的四工具链路 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run ch02 -- --prompt '只使用文件工具:写入 demo/note.txt,内容为 alpha;把第一处 alpha 改成 gamma;读取文件并用 glob 列出 demo/*.txt'</code></pre>
+        <div class="callout warn"><span class="lab">注意</span> 这条命令会<b>真实创建</b> <code>code/demo/note.txt</code>。跑完用 <code>Get-Content .\demo\note.txt</code> 确认,预期输出 <code>gamma</code>。prompt 里「只使用文件工具」是有意加的,否则模型可能直接拼 PowerShell,走回第 1 章的逐次审批。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 3 步 · 换一个只读任务 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run agent-tutorial -- run --chapter 2 --prompt '读取 package.json,并列出 chapters/ch02/src/**/*.ts'</code></pre>
+        <p>这条只用 <code>read_file</code> 和 <code>glob</code>,不产生任何文件改动,适合反复跑着观察。<b>你在哪个目录敲命令,Agent 的工作区边界就在哪里</b>——在 <code>code/</code> 里跑,safePath 守的就是 <code>code/</code>。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 4 步(可选) · 完整离线验证 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run typecheck
+npm test
+npm run lint
+npm run format:check
+npm run build</code></pre>
+        <p>这些测试不需要 API Key,也不访问网络。真实 OpenAI 运行只是额外验证,不替代离线契约测试。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>常见报错排查表 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>第 1 章那张表仍然适用(配置、参数、审批相关)。下面是本章新增、和文件工具有关的情况:</p>
+        <table>
+          <tr><th>现象</th><th>原因</th><th>怎么处理</th></tr>
+          <tr><td><code>Error [path_escape]: …</code></td><td>路径含 <code>..</code>、绝对路径或 Windows 保留名</td><td>正常行为;看 prompt 是否让模型误以为要访问工作区外</td></tr>
+          <tr><td><code>Error [text_not_found]: …</code></td><td>模型凭猜测拼了 <code>old_text</code></td><td>正常行为;模型下一轮应先 <code>read_file</code></td></tr>
+          <tr><td><code>Error [invalid_utf8]: …</code></td><td>读到二进制文件(图片、.exe、锁文件)</td><td>正常行为;用 <code>glob</code> 限定文本后缀</td></tr>
+          <tr><td><code>Error [file_not_found]: …</code></td><td>路径写错或文件不存在</td><td>让模型先 <code>glob</code> 确认路径</td></tr>
+          <tr><td>模型仍然调 <code>shell</code> 不用文件工具</td><td>prompt 没明确限定</td><td>写「只使用文件工具」</td></tr>
+          <tr><td>文件写出来是乱码</td><td>不是本章代码问题</td><td><code>write_file</code> 固定 UTF-8;检查打开方式</td></tr>
+          <tr><td><code>demo/note.txt</code> 出现在意外位置</td><td>不在 <code>code/</code> 下运行</td><td><code>Set-Location</code> 到 <code>code/</code></td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="verify">
+    <h2><span class="num">🧪</span> 验证与实验</h2>
+    <div class="sec-desc">8 个测试文件、47 个测试。第 1 章的测试原样保留——它们在验证<b>累加原则</b>。</div>
+    <table>
+      <tr><th style="width:30%">测试文件</th><th>验证内容</th></tr>
+      <tr><td><code>ch02-files.test.ts</code></td><td>四个文件工具的成功路径、每个错误码、多工具单轮配对</td></tr>
+      <tr><td><code>filesystem.test.ts</code></td><td>safePath 两道检查、Windows 保留名、junction 越界、glob 边界</td></tr>
+      <tr><td><code>ch01-loop.test.ts</code></td><td>第 1 章循环行为在 P02 下仍然成立</td></tr>
+      <tr><td><code>shell-tool.test.ts</code></td><td>shell 超时、截断、非零退出码保持不变</td></tr>
+      <tr><td><code>messages.test.ts</code></td><td><code>tool_call_id</code> 严格配对</td></tr>
+      <tr><td><code>profiles.test.ts</code></td><td>P01 只暴露 shell;P02 按固定顺序暴露五个工具</td></tr>
+      <tr><td><code>config.test.ts</code></td><td>.env 校验与 baseUrl 归一化</td></tr>
+      <tr><td><code>openai-chat.test.ts</code></td><td>SDK 响应收窄、refusal 处理</td></tr>
+    </table>
+
+    <details class="card">
+      <summary>三个建议动手做的小实验 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:28%">实验</th><th>预期</th><th>学到什么</th></tr>
+          <tr><td><b>一·给 read_file 传多余字段</b><br><small>让脚本化模型返回 <code>{"path":"note.txt","encoding":"gbk"}</code></small></td><td><code>prepare()</code> 阶段就失败,<b>readFile 一次都没被调用</b></td><td><code>strictObject</code> + 校验前置的组合效果</td></tr>
+          <tr><td><b>二·连续两次 edit_file 用同一 old_text</b><br><small>第一次成功,第二次会怎样</small></td><td>第二次返回 <code>text_not_found</code> 且文件不变</td><td>「只替换第一处 + 失败不写回」的实际后果</td></tr>
+          <tr><td><b>三·造一个越界 junction</b><br><small><code>New-Item -ItemType Junction -Path .\escape -Target C:\Windows\Temp</code>(需管理员权限,用完删)</small></td><td>返回 <code>path_escape</code>,文件读不到</td><td>safePath 第二关的实际效果——第一关完全放行,是磁盘解析拦住的</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">
+      新增工具的稳定扩展路径:<br>
+      <code>Zod schema → ToolDefinition → ToolRegistry → Agent Loop(不变)</code>
+    </div>
+    <p>这一章真正增加的不是四个孤立函数,而是一条稳定扩展路径:先定义明确输入和副作用,再实现 handler,最后注册一次。循环不需要知道工具细节,模型看到的 schema 和运行时执行的 handler 也不会分家。</p>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">📝</span> 本章小结</h2>
+    <div class="sec-desc">三句话版本、一定要记住的六条、以及本章<b>还没做什么</b>。</div>
+
+    <div class="callout">
+      <span class="lab">三句话版本</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>加工具的正确姿势是「定义 + 注册」,Agent Loop 一行都不用改。</li>
+        <li>一份 Zod schema 同时供模型阅读和运行时校验,从根上消除「文档和实现不一致」。</li>
+        <li>文件工具的安全性来自 <code>safePath</code> 的两道检查:词法拦明显越界,磁盘解析拦符号链接。</li>
+      </ol>
+    </div>
+
+    <details class="card" open>
+      <summary>一定要记住的六条 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:6%">#</th><th>结论</th><th style="width:22%">出现在哪一节</th></tr>
+          <tr><td>1</td><td>校验全在 <code>prepare()</code>,副作用全在 <code>invoke()</code>,顺序不能反</td><td>ToolRegistry</td></tr>
+          <tr><td>2</td><td>契约外的输入明确失败,不做隐式转换、不忽略多余字段</td><td>用 Zod 定义严格输入</td></tr>
+          <tr><td>3</td><td><code>..</code>、绝对路径、Windows 保留名一律拒绝,不尝试修复</td><td>safePath</td></tr>
+          <tr><td>4</td><td>只看字符串挡不住 junction,必须解析磁盘真实路径</td><td>为什么必须有第二关</td></tr>
+          <tr><td>5</td><td><code>edit_file</code> 用精确文本而非行号,因为行号编辑一次就失效</td><td>edit_file</td></tr>
+          <tr><td>6</td><td><code>catch</code> 只翻译能列举出名字的错误,其余继续抛</td><td>handler 错误映射</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>本章代码边界(明确「还没做什么」) <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th>已经有</th><th>还没有</th><th style="width:18%">在哪一章补</th></tr>
+          <tr><td>五个工具(含四个文件工具)</td><td>结构化权限规则、审计日志</td><td>第 3 章</td></tr>
+          <tr><td><code>shell</code> 逐次人工审批</td><td>写工具也进审批流程</td><td>第 3 章</td></tr>
+          <tr><td>文件工具的 <code>safePath</code> 边界</td><td><code>shell</code> 的路径边界(<b>仍然没有</b>)</td><td>教程范围外;shell 始终依赖审批</td></tr>
+          <tr><td><code>effect</code> 元数据</td><td><code>effect</code> 参与权限决策</td><td>第 3 章</td></tr>
+          <tr><td>单轮多工具<b>串行</b>执行</td><td>并发执行与并发安全契约</td><td>第 13 章(后台任务)</td></tr>
+          <tr><td>完整读取 + <code>limit</code> 截断</td><td>产物落盘、上下文压缩</td><td>第 8 章</td></tr>
+          <tr><td>启动时固定的五个工具</td><td>运行中动态增减工具</td><td>第 19 章</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>检查你是否真的读懂了(不看文章回答) <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li>模型传 <code>{"path":"note.txt","limit":"10"}</code>,会发生什么?为什么不自动转成数字?</li>
+          <li><code>nested/../secret.txt</code> 化简后在工作区内,为什么还是拒绝?</li>
+          <li>工作区里有个指向外部的 junction,第一关和第二关分别是什么结论?</li>
+          <li><code>write_file</code> 写入 <code>你好</code>,返回的数字是 2 还是 6?为什么?</li>
+          <li><code>edit_file</code> 的 <code>old_text</code> 在文件里出现 3 次,会改几处?</li>
+          <li>handler 的 <code>catch</code> 最后为什么要 <code>throw error</code> 而不是返回兜底错误码?</li>
+        </ol>
+        <div class="callout"><span class="lab">提示</span> 答不上来的,回 <a href="#concepts">核心概念</a> 和 <a href="#safe">safePath 检查器</a> 再看一遍,然后做下面的测验。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="sec-desc">10 道题,选完即时看解析。全部答完显示得分。</div>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+
+  <div class="pagenav">
+    <a class="prev" href="第一章glm生成.html"><span class="lbl">上一章</span>← Agent Loop:一个循环</a>
+    <a class="next" href="第三章glm生成.html"><span class="lbl">下一章</span>复刻 Claude Code 权限系统 →</a>
+  </div>
+</main>
+
+<footer>Agent 架构实操系列 · 交互学习版 · 第 2 章 / 共 20 章</footer>
+
+<script>
+/* ===== 工具注册台 ===== */
+const toolMeta={
+  shell:{ic:"⚡",efx:"execute",desc:"运行 PowerShell"},
+  read_file:{ic:"📖",efx:"read",desc:"读取 UTF-8 文本"},
+  write_file:{ic:"✏️",efx:"write",desc:"写入 UTF-8 文本"},
+  edit_file:{ic:"🔧",efx:"write",desc:"精确替换第一处文本"},
+  glob:{ic:"🔎",efx:"read",desc:"按模式查找文件"},
+};
+const order=["shell","read_file","write_file","edit_file","glob"];
+const registered=new Set(["shell"]);
+const regList=document.getElementById("regList"), profName=document.getElementById("profName"), loopState=document.getElementById("loopState");
+function renderReg(){
+  regList.innerHTML="";
+  registered.forEach(name=>{
+    const m=toolMeta[name];
+    const d=document.createElement("div"); d.className="reg-item";
+    d.innerHTML=`<span>${m.ic}</span><span>${name}</span><span class="efx ${m.efx}">${m.efx}</span>`;
+    regList.appendChild(d);
+  });
+  profName.textContent = registered.size>=5 ? "P02" : "P0"+(registered.size===1?"1":"2");
+  const added=registered.size-1;
+  loopState.className = added>0 ? "unchanged" : "unchanged";
+  loopState.textContent = `✓ 循环代码:0 处修改(已注册 ${registered.size} 个工具,Loop 仍只认识 prepare/invoke)`;
+}
+document.getElementById("toolBtns").addEventListener("click",e=>{
+  const b=e.target.closest(".tool-btn"); if(!b||b.classList.contains("done")) return;
+  const name=b.dataset.tool; registered.add(name);
+  b.classList.add("done"); b.querySelector(".st").textContent="✓ 已注册";
+  renderReg();
+});
+document.getElementById("regReset").onclick=()=>{ registered.clear(); registered.add("shell"); order.forEach(n=>{const b=document.querySelector(`.tool-btn[data-tool="${n}"]`); if(n!=="shell"){b.classList.remove("done"); b.querySelector(".st").textContent="";} }); renderReg(); };
+renderReg();
+
+/* ===== safePath 检查器 ===== */
+const pathInput=document.getElementById("pathInput"), pathCheck=document.getElementById("pathCheck"), pathResult=document.getElementById("pathResult");
+const samples=["src/main.ts","../secret.txt","nested/../secret.txt","C:\\secret.txt","/etc/passwd","NUL.txt","nested/CON.log","file:stream","demo/note.txt","trailing.","src/./ok.ts","escape/id_rsa"];
+const chipsBox=document.getElementById("chips");
+samples.forEach(s=>{ const c=document.createElement("span"); c.className="chip"; c.textContent=s; c.onclick=()=>{pathInput.value=s; checkPath();}; chipsBox.appendChild(c); });
+function checkPath(){
+  const p=pathInput.value.trim();
+  if(!p){ pathResult.className="sp-result"; pathResult.style.display="none"; return; }
+  let reject=null, rule="";
+  // 词法检查(第一关)
+  if(p===""){reject=true;rule="空路径";}
+  else if(/^[A-Za-z]:[\\\/]/.test(p)||/^[\\\/]/.test(p)){reject=true;rule="绝对路径 / 盘符,必须 workspace 相对";}
+  else if(/(^|[\\\/])\.\.([\\\/]|$)/.test(p)){reject=true;rule="包含 ..,可能逃逸 workspace(即使化简后在区内也拒绝)";}
+  else if(/(^|[\\\/])(NUL|CON|PRN|AUX|COM[1-9]|LPT[1-9])(\.|$)/i.test(p)){reject=true;rule="Windows 保留设备名(CON/NUL/COMx/LPTx)";}
+  else if(/:/.test(p)){reject=true;rule="冒号可能形成 NTFS Alternate Data Stream";}
+  else if(/[. ]$/.test(p)){reject=true;rule="尾随点或空格会被 Win32 特殊处理";}
+  else {reject=false;rule="词法通过";}
+  // 第二关:模拟已存在父路径的 junction 解析
+  let second="";
+  if(!reject){
+    if(/^escape\//.test(p)){ reject=true; second="第二关:escape 是指向工作区外的 junction,解析真实路径后逃逸 → 拒绝"; }
+    else { second="第二关:已存在父路径解析后仍在 workspace 内 → 放行"; }
+  }
+  pathResult.className="sp-result show "+(reject?"bad":"ok");
+  pathResult.innerHTML=`<div class="verdict">${reject?"✗ 拒绝":"✓ 放行"}</div><div class="rule">第一关(词法):${rule}</div><div class="rule">${second||"(第一关已拒绝,不再碰磁盘)"}</div>`;
+}
+pathCheck.onclick=checkPath; pathInput.addEventListener("keydown",e=>{if(e.key==="Enter")checkPath();});
+checkPath();
+
+/* ===== QA 测验 ===== */
+const questions=[
+  { q:"「加一个工具只需要加一行」的准确含义是?", o:["工具 handler 只写一行","工具定义完成后只需 registry.register(定义),不改 Loop、不另维护 handler 表","OpenAI schema 只写一行","把工具名加进一个数组"], a:1,
+    e:"工具定义(name+description+effect+handler+schema)完成后,只需注册这个定义。循环只认识 prepare/invoke 抽象协议,不认识具体工具,所以不必改 Loop。" },
+  { q:"ToolRegistry 不负责下面哪件事?", o:["按名称查找工具","把 JSON 字符串解析成 object","用 Zod 严格校验参数","直接调用 PowerShell 子进程"], a:3,
+    e:"调用 PowerShell 是 adapters/powershell.ts 的事。Registry 只负责查找、解析、校验、分发到与 schema 绑定的 handler。子进程执行在 adapter 层。" },
+  { q:"为什么用 z.strictObject 而不是 z.object?", o:["为了生成更短的 JSON Schema","拒绝 schema 外的多余字段,在产生副作用前拦住非法参数","为了让 TypeScript 编译更快","OpenAI API 强制要求"], a:1,
+    e:"strictObject 拒绝 schema 外字段,在真正执行副作用前拦住非法参数。非法参数不会先写文件再报错。" },
+  { q:"Zod schema 同时服务于哪两个目的(同源)?", o:["文档生成和单元测试","运行时校验和 OpenAI tool schema 生成","TypeScript 类型和 README","CLI 帮助和错误码"], a:1,
+    e:"z.toJSONSchema(definition.inputSchema) 直接生成 OpenAI tool schema。模型看到的契约和 handler 真正接受的契约来自同一源头,.describe() 也进入 schema,不会文档/校验漂移。" },
+  { q:"safePath 第二关(解析已存在父路径)要拦的是哪种攻击?", o:["路径里有 ..","绝对路径 C:\\","workspace 内的 junction/符号链接指向工作区外","文件名含中文"], a:2,
+    e:"词法检查只看文本。若 workspace/escape 是指向外部的 junction,escape/secret.txt 文本看似在内、真实路径却在外。第二关解析磁盘真实路径,不在 root 内就立即失败。" },
+  { q:"edit_file 为什么拒绝行号、只改第一处、找不到不写回?", o:["行号实现复杂","行号随每次编辑整体偏移易改错位;只改第一处可预测;找不到不写回避免误覆盖","OpenAI 不支持行号参数","为了和 shell 区分"], a:1,
+    e:"行号会随前面每次编辑整体偏移,模型拿着旧行号易改错位。要求旧文本+新文本,只替换第一处精确匹配,找不到不写回——逼模型先读再改。读入整段只替换片段,未改部分 CRLF 不被顺带改。" },
+  { q:"write_file 返回 6(对内容「你好」),这个 6 是什么?", o:["字符串长度","字符个数","UTF-8 字节数","行数"], a:2,
+    e:"返回 bytes.byteLength 而非 JS 字符串长度。「你好」length=2,但 UTF-8 实际 6 字节。结果与真正写入磁盘的数据一致。" },
+  { q:"工具描述和 KV Cache 的关系是?", o:["无关,只是给开发者看的文档","是模型实际读到的上下文,与 system 构成静态前缀;每轮改描述会让前缀变化、缓存作废","描述越短缓存越有效","描述只影响第一次请求"], a:1,
+    e:"tools 字段与 system 共同构成每轮不变的静态前缀。缓存依赖前缀字节稳定性:动态重排工具、改描述、塞时间戳都会让前缀变化,之前缓存的中间结果作废。Registry 按注册顺序稳定导出+snapshot 禁改,正是为此。" },
+  { q:"模型在一轮里同时请求 write_file 和 read_file 同一个文件,为什么串行执行?", o:["为了省 token","读写存在顺序依赖,并发可能读到旧内容或写了一半的文件——不确定","OpenAI API 不允许并发","并行会触发 safePath"], a:1,
+    e:"串行先写后读,结果是确定的。并发可能读到旧内容或写了一半的文件。没有并发安全契约前不擅自并发;第 13 章正面处理。" },
+  { q:"第 2 章,write_file 改文件不需要审批,而 shell 需要。为什么?", o:["write_file 有 bug","effect 标签已经贴上但没有任何代码去读它,只有硬编码的「shell 需审批」规则","文件工具比 shell 更安全","shell 是 execute,write 是 read"], a:1,
+    e:"第 2 章还没有权限系统,只有一个硬编码规则。effect 在第 2 章只是元数据,第 3 章才用它构建统一权限系统,让写工具也进入审批和审计。" },
+];
+const quizBox=document.getElementById("quizBox"); const answered={};
+questions.forEach((q,i)=>{
+  const item=document.createElement("div"); item.className="q-item";
+  let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");
+  item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;
+  quizBox.appendChild(item);
+});
+const resultBox=document.createElement("div"); resultBox.className="quiz-result"; resultBox.id="quizResult"; quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{
+  const lbl=ev.target.closest(".opt"); if(!lbl) return; const i=+lbl.dataset.i, j=+lbl.dataset.j; if(answered[i]!==undefined) return; answered[i]=j; const q=questions[i];
+  const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);
+  opts.forEach((o,k)=>{ o.classList.add("disabled"); if(k===q.a)o.classList.add("correct"); if(k===j&&j!==q.a)o.classList.add("wrong"); });
+  const exp=document.getElementById("exp"+i); exp.className="explanation show "+(j===q.a?"ok":"bad");
+  exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;
+  if(Object.keys(answered).length>=questions.length){
+    const score=questions.filter((q,i)=>answered[i]===q.a).length, pct=Math.round(score/questions.length*100);
+    let msg=pct===100?"🏆 满分!工具扩展路径你已经吃透":pct>=75?"👏 不错,扫一眼错题就稳":pct>=50?"💪 过半,重看 safePath 和同源 schema":"📚 重看核心概念卡和两个演示再来";
+    resultBox.style.display="block"; resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;
+    resultBox.scrollIntoView({behavior:"smooth",block:"center"});
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 3 章 · 复刻 Claude Code 权限系统</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  /* permission sim */
+  .perm{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .perm-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:14px}
+  .pick{cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:.82rem;transition:.15s}.pick:hover{border-color:var(--accent)}.pick.sel{border-color:var(--accent);background:rgba(124,156,255,.1)}
+  .pick .pn{font-family:monospace;font-weight:700;color:var(--accent)}.pick .pe{font-size:.7rem;color:var(--muted);margin-top:2px}
+  .perm-args{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:10px;font-family:monospace;font-size:.82rem;margin-bottom:14px;color:var(--muted)}
+  .perm-args b{color:var(--text)}
+  .gates{display:flex;flex-direction:column;gap:8px}
+  .gate{border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;opacity:.5;transition:.2s}
+  .gate.on{opacity:1}
+  .gate .gn{flex-shrink:0;width:130px;font-size:.82rem;font-weight:600}.gate .gn .ix{color:var(--muted);font-size:.7rem;display:block}
+  .gate .gd{flex:1;font-size:.82rem;color:var(--muted)}
+  .gate .verdict{font-weight:700;font-size:.78rem;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .v-deny{background:rgba(248,113,113,.15);color:var(--bad);border:1px solid rgba(248,113,113,.4)}
+  .v-ask{background:rgba(251,191,36,.15);color:var(--warn);border:1px solid rgba(251,191,36,.4)}
+  .v-allow{background:rgba(74,222,128,.15);color:var(--ok);border:1px solid rgba(74,222,128,.4)}
+  .v-pass{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  .perm-final{margin-top:14px;padding:14px;border-radius:10px;border:1px solid var(--border);text-align:center;font-size:.95rem;display:none}.perm-final.show{display:block}
+  .perm-final.deny{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.4);color:var(--bad)}.perm-final.ask{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.4);color:var(--warn)}.perm-final.allow{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4);color:var(--ok)}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 3 章</span>
+  <span class="title">复刻 Claude Code 权限系统 <span class="muted">· Agent架构实操三</span></span>
+  <nav><a href="#guide">导读</a><a href="#glossary">术语</a><a href="#concepts">概念</a><a href="#sim">模拟器</a><a href="#run">运行</a><a href="#recap">小结</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>深度拆解复刻 Claude Code 权限系统</h1>
+    <div class="sub">能力够用了,风险也随之出现。把安全完全委托给概率模型是错的——权限策略必须在代码里,且位置固定:副作用发生前的确定性边界。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 15 分钟</span>
+      <span class="pill">🛡 四态决定 + deny 优先</span>
+      <span class="pill">🔒 fail closed</span>
+      <span class="pill">🧪 61 个离线测试</span>
+    </div>
+  </div>
+
+  <section id="guide">
+    <h2><span class="num">🎯</span> 本章导读</h2>
+    <div class="sec-desc">读完这一章,你应该能用一句话回答下面每个问题。</div>
+    <div class="callout"><span class="lab">读完能做到</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>说清楚为什么权限判断不能写在 system prompt 里,只能写在代码的固定位置。</li>
+        <li>手画出 <code>prepare → 权限 → invoke</code> 的顺序,并解释顺序反过来会失去什么。</li>
+        <li>解释 <code>allow</code> / <code>deny</code> / <code>ask</code> / <code>passthrough</code> 四种行为各自的用途,以及为什么 boolean 不够。</li>
+        <li>讲清 <code>deny > ask > allow > passthrough</code> 这条优先级,并举出「规则说允许但仍然被拒绝」的例子。</li>
+        <li>列出所有会导致 <code>ask</code> 变成 <code>deny</code> 的情况(一共七种),并说明这叫 fail closed。</li>
+        <li>判断一次调用会走哪条路径:直接放行、弹审批、还是硬拒绝。</li>
+      </ol>
+    </div>
+
+    <details class="card">
+      <summary>你需要先具备什么 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>需要</th><th>说明</th></tr><tr><td>读完第 1、2 章</td><td>本章直接建立在 <code>ToolRegistry.prepare()</code> / <code>invoke()</code> 的分离之上</td></tr><tr><td>理解 <code>effect</code> 标签</td><td>第 2 章给每个工具贴了 <code>read</code> / <code>write</code> / <code>execute</code>;本章开始真正用它</td></tr><tr><td>理解 <code>safePath</code></td><td>本章的工作区硬边界就是复用第 2 章的 <code>safePath</code></td></tr><tr><td>会跑 <code>npm run ch02</code></td><td>本章运行方式完全一样,只是多了审批交互</td></tr></table>
+        <p>不需要任何安全或密码学背景。本章讲的全是「在哪一行代码上做判断」这种工程问题。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>建议的阅读路线 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>本章导读(你在这)
+  ↓
+① 先看一眼真实的决策过程    ← 三条调用走出三种结果,先有画面
+  ↓
+② 验收结果 + 为什么不是 Prompt
+  ↓
+③ 四态决定                  ← 为什么不是 boolean,三个字段各自的作用
+  ↓
+④ 请求与规则                ← 权限层的输入契约、一条规则长什么样
+  ↓
+⑤ 三道闸门如何合并          ← 本章最核心的一节:优先级
+  ↓
+⑥ 硬边界 / Shell / 审批 / 审计
+  ↓
+⑦ 插入 Agent Loop + P02/P03 差异
+  ↓
+⑧ 四个场景 + effect 驱动
+  ↓
+⑨ 边界、运行、验证与小结</code></pre>
+        <div class="callout"><span class="lab">提示</span> 想先看画面?直接往下读<a href="#wire">① 真实的决策过程</a>,再回来读概念。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="glossary">
+    <h2><span class="num">📇</span> 术语速查</h2>
+    <div class="sec-desc">本章第一次出现的词。先扫一眼,正文里遇到不认识的词回来查即可。<b>不用背</b>。</div>
+    <table>
+      <tr><th style="width:26%">术语</th><th>一句话解释</th></tr>
+      <tr><td><b>PermissionDecision</b></td><td>一个不可变的权限结论,三件事:behavior + reason + source</td></tr>
+      <tr><td><code>behavior</code></td><td>结论本身:<code>allow</code> / <code>deny</code> / <code>ask</code> / <code>passthrough</code></td></tr>
+      <tr><td><code>reason</code></td><td>人能读懂的原因。会进审计,也会进模型视野</td></tr>
+      <tr><td><code>source</code></td><td>谁做的决定:规则名 / <code>shell-default</code> / <code>terminal-approval</code> / <code>workspace-boundary</code> / <code>default</code></td></tr>
+      <tr><td><b>PermissionRequest</b></td><td>权限系统的输入。<b>只接受已通过 Zod 校验的调用</b></td></tr>
+      <tr><td><b>PermissionRule</b></td><td>一条规则 = 名字 + 行为 + 原因 + 匹配函数</td></tr>
+      <tr><td><b>PermissionPolicy</b></td><td>合并所有参与方、产出唯一最终决定的地方</td></tr>
+      <tr><td><b>参与方</b></td><td>能提出候选决定的角色:硬边界、Shell 默认、规则、Hook 建议</td></tr>
+      <tr><td><b>ApprovalProvider</b></td><td>审批边界。<code>ask</code> 只能由它收敛成 <code>allow</code> 或 <code>deny</code></td></tr>
+      <tr><td><b>AuditSink</b></td><td>审计边界。记录<b>最终</b>决定;它失败则不执行</td></tr>
+      <tr><td><b>WorkspaceWriteBoundary</b></td><td>系统硬边界。判断写入路径是否在 workspace 内</td></tr>
+      <tr><td><b>fail closed</b></td><td>判断依赖出故障时选择拒绝,而不是把「不知道」当成「可以」</td></tr>
+      <tr><td><code>permission_denied</code></td><td>权限拒绝回填给模型的稳定错误码</td></tr>
+      <tr><td><code>permission_evaluation_error</code></td><td>权限系统自身出故障时的稳定错误码</td></tr>
+    </table>
+  </section>
+
+  <section id="wire">
+    <h2><span class="num">📡</span> 先看一眼真实的决策过程</h2>
+    <div class="sec-desc">不看代码。假设模型在同一次会话里先后提出三个调用,看它们各走到哪一步。</div>
+
+    <details class="card" open>
+      <summary>调用 A · glob(read)→ 默认允许,仍留记录 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>① 工作区硬边界    effect 不是 write,不表态 → 无候选
+② Shell 默认      effect 不是 execute,不表态 → 无候选
+③ 规则            confirm-file-write 不匹配 → 无候选
+④ 合并            一个候选都没有 → passthrough
+⑤ 收敛            passthrough → allow(default)
+⑥ 审批            不需要
+⑦ 审计            [Permission] glob: allow (default) - No ...
+⑧ 执行            handler 跑起来</code></pre>
+        <p><b>默认允许,但仍然留了记录。</b></p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>调用 B · write_file(工作区内)→ 弹审批 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>① 工作区硬边界    path 在 workspace 内 → 不表态
+③ 规则            confirm-file-write 匹配 → ask
+④ 合并            最强的是 ask
+⑤ 收敛            调用 ApprovalProvider
+                 → 工具调用需要批准: write_file
+                   原因: File writes require explicit approval...
+                   允许本次调用? [y/N] y → allow(terminal-approval)
+⑥ 审计            [Permission] write_file: allow (terminal-approval)
+⑦ 执行            handler 跑起来</code></pre>
+        <div class="callout"><span class="lab">关键</span> 审批只授权<b>这一次</b>。下一轮再写文件,还会再问一遍。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>调用 C · write_file(工作区外)→ 硬拒绝,最重要的例子 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>① 工作区硬边界    safePath 拒绝 → deny
+③ 规则            confirm-file-write 匹配 → ask
+④ 合并            deny 和 ask 都在 → deny 优先
+⑥ 审批            ❌ 根本没调用,用户看不到任何提示框
+⑦ 审计            [Permission] write_file: deny (workspace-boundary)
+⑧ 执行            ❌ handler 一次都没跑
+⑨ 回填模型        Error [permission_denied]: Writing outside ...</code></pre>
+        <div class="callout bad"><span class="lab">deny &gt; ask</span> 规则明明说了 ask(问一下就能过),但硬边界的 deny 直接压过它——不给用户「批准一个不该被批准的操作」的机会。</div>
+      </div>
+    </details>
+
+    <table>
+      <tr><th></th><th>调用 A glob</th><th>调用 B 区内 write</th><th>调用 C 区外 write</th></tr>
+      <tr><td>合并结果</td><td><code>passthrough</code></td><td><code>ask</code></td><td><b><code>deny</code></b></td></tr>
+      <tr><td>弹审批框?</td><td>否</td><td><b>是</b></td><td><b>否</b></td></tr>
+      <tr><td>handler 执行?</td><td>是</td><td>看用户输入</td><td><b>否</b></td></tr>
+      <tr><td>进审计?</td><td>是</td><td>是</td><td>是</td></tr>
+    </table>
+    <div class="callout"><span class="lab">注意</span> 三种情况都进审计。审计记的不是「危险操作」,是「每一个最终决定」。</div>
+  </section>
+
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 为什么 Prompt 不是安全边界 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>在 system prompt 写「不要删除系统文件」只是软约束:模型可能理解错误、用户输入与系统指令冲突、多轮上下文弱化早期提醒、不可能枚举所有危险命令组合、无法证明副作用前一定检查了。</p>
+        <p>权限策略必须在代码里,位置固定:</p>
+        <pre><code>模型返回 tool_calls
+      ↓
+ToolRegistry.prepare:查找 + JSON 解析 + Zod 校验
+      ↓
+PermissionPolicy.decide:硬边界 + 规则 + 审批 + 审计  ← 这里
+      ↓
+ToolRegistry.invoke:执行 handler
+      ↓
+回填相同 tool_call_id</code></pre>
+        <div class="callout bad"><span class="lab">原则</span> 模型只能<b>提出</b>调用请求。是否执行由 Harness 决定。</div>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 权限不是 boolean,而是四态 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>只返回 true/false,运行时不知道「需要询问」和「不发表意见」的区别,也无法解释决定来源。本章四种行为:</p>
+        <table><tr><th>behavior</th><th>含义</th></tr><tr><td><code>allow</code></td><td>明确允许</td></tr><tr><td><code>deny</code></td><td>明确拒绝</td></tr><tr><td><code>ask</code></td><td>必须取得一次显式审批</td></tr><tr><td><code>passthrough</code></td><td>不表态,交给其他规则或默认值</td></tr></table>
+        <p>每个决定携带<b>原因</b>和<b>来源</b>。最终拒绝转成稳定工具结果:<code>Error [permission_denied]: ...</code>,不是含混的 <code>Permission denied.</code></p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 三道闸门如何合并(deny 优先) <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>一次权限判断有三层输入:</p>
+        <ol><li><b>系统硬边界</b>:工作区外写入直接 deny。</li><li><b>结构化参与方</b>:Shell 默认策略、规则、后续 Hook 建议。</li><li><b>显式审批</b>:只有合并结果为 ask 时才调用。</li></ol>
+        <p>合并优先级固定:<code>deny > ask > allow > passthrough</code>。核心代码按这个顺序找第一个决定。只有 passthrough 或完全没参与方时才默认 allow(落在没有规则反对的读取上)。</p>
+        <div class="callout bad"><span class="lab">关键</span> 任何层级的 deny 都不能被其他层级的 allow 覆盖。这与 Claude Code 官方权限文档一致。</div>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 工作区边界为什么在规则之前 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>调用 <code>{"path":"../outside.txt","content":"x"}</code>:项目规则可能允许、未来 Hook 可能建议允许、用户甚至输入 y——但工作区外写入仍必须拒绝,且<b>不能先弹审批框</b>。</p>
+        <p>PermissionPolicy 先询问 WorkspaceWriteBoundary。它继承第 2 章 safePath 的全部保证:拒绝绝对路径、<code>..</code>、Windows 保留名、junction/符号链接逃逸。真实路径解析抛异常时也得到「Write path could not be resolved safely」,不降级成允许。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · Shell 为什么一律 ask <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>不能用关键词黑名单判断 PowerShell 是否安全。<code>Get-Content</code> 看起来只读,但参数可指向工作区外;普通命令还可调脚本、启动子进程、访问网络。只匹配 <code>Remove-Item</code> 既不完整也容易绕过。</p>
+        <p>因此只要工具 effect 是 <code>execute</code>,系统就产生默认 ask。审批只授权当前一次调用,不保存「永远允许」。</p>
+      </div>
+    </details>
+    <details class="card"><summary>6 · ask 必须得到显式 allow(fail closed) <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>以下情况都变成 deny:没有审批器、审批器抛异常、返回普通 object/boolean、再次返回 ask、返回 passthrough、终端无交互 stdin、用户直接回车或输入其他内容。真实终端只接受 <code>y</code> 和 <code>yes</code>。</p>
+        <div class="callout bad"><span class="lab">fail closed</span> 权限依赖失败时拒绝,不把「无法判断」解释成「可以执行」。规则异常、审批异常、审计异常都按此原则,不降级成放行。</div>
+      </div>
+    </details>
+    <details class="card"><summary>7 · 审计记录最终决定 + 消息配对 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>审计发生在规则合并和审批完成之后,记录的是最终结果:<code>[Permission] write_file: allow (terminal-approval) - User approved</code>。审计器失败时不执行未留记录的副作用,转成 <code>permission_evaluation_error</code>,handler 调用次数为零,消息仍配对。</p>
+        <p>权限拒绝仍生成与原调用 ID 配对的 <code>permission_denied</code> tool result。<code>validateToolPairing()</code> 每轮检查:assistant 工具调用后必须立即跟对应数量的 tool 消息,ID 严格匹配。</p>
+      </div>
+    </details>
+    <details class="card"><summary>8 · P02 vs P03 差异 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>操作</th><th>P02</th><th>P03</th></tr><tr><td>read_file / glob</td><td>直接允许</td><td>直接允许并审计</td></tr><tr><td>工作区内 write/edit</td><td>直接允许</td><td>ask,最终决定审计</td></tr><tr><td>工作区外 write</td><td>handler 返回 path_escape</td><td>权限硬边界拒绝并审计</td></tr><tr><td>shell</td><td>ask</td><td>ask 并审计</td></tr></table>
+        <p>P03 只增加一个 capability <code>policy</code>。组合根根据固定 profile 自己构造策略,不接收调用方拼好的宽松策略;缺 approvalProvider 或 auditSink 直接启动失败。</p>
+      </div>
+    </details>
+  </section>
+
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:权限决策模拟器</h2>
+    <div class="sec-desc">选一个工具调用,看它如何穿过三道闸门,最终是 allow / ask / deny。注意工作区外写入在硬边界就被拦,根本不进审批。</div>
+    <div class="perm">
+      <div class="perm-pick" id="picks"></div>
+      <div class="perm-args" id="args"></div>
+      <div class="gates" id="gates"></div>
+      <div class="perm-final" id="final"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula"><code>prepare → 工作区硬边界 → 规则/建议 → deny>ask>allow>passthrough → 显式审批 → 审计 → invoke</code></div>
+    <p>这一章建立了一个不会被弱允许覆盖的副作用边界。Prompt 是软约束,权限是硬边界;deny 永远优先,fail closed 永不降级放行。</p>
+  </section>
+
+  <section id="run">
+    <h2><span class="num">🚀</span> 运行第 3 章</h2>
+    <div class="sec-desc">前置条件和第 1、2 章一样(<code>npm ci</code> + .env 三变量)。下面四步,每步都给出预期结果。</div>
+
+    <details class="card" open>
+      <summary>第 0–1 步 · 环境与离线测试 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>Set-Location 'F:\笔记\Agent实操\code'
+npm ci
+npm run test:ch03</code></pre>
+        <pre><code> Test Files  10 passed (10)
+      Tests  61 passed (61)</code></pre>
+        <p>跑测试时你会看到一行 <code>配置错误: Missing required settings: ...</code>——<b>这不是失败</b>,是被测试断言的预期输出(验证缺配置时 CLI 返回退出码 2)。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 2–3 步 · 跑一个会弹审批的任务,再故意拒绝 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run ch03 -- --prompt '读取 README.md,然后把一句摘要写入 chapter3-note.txt'
+
+[Permission] read_file: allow (default) - No permission rule blocked the request
+
+工具调用需要批准: write_file
+原因: File writes require explicit approval from chapter 3 onward
+参数: {"path":"chapter3-note.txt","content":"..."}
+允许本次调用? [y/N]</code></pre>
+        <p>这条 prompt 是专门挑的:先 <code>read_file</code>(默认放行)再 <code>write_file</code>(必须审批),一次跑完看两条路径。敲 <code>y</code> 后看到:</p>
+        <pre><code>[Permission] write_file: allow (terminal-approval) - User approved this tool call</code></pre>
+        <p><b>第 3 步:再跑一次,在审批框直接回车。</b>预期先 <code>[Permission] write_file: deny ...</code>,模型随后收到 <code>Error [permission_denied]: User denied this tool call</code>,且<b>文件内容没有任何变化</b>。<code>[y/N]</code> 里大写的 N 是默认值,回车等于拒绝——这是本章最值得亲手做的验证。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 4 步 · 看硬边界拦下一次越界写入 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run ch03 -- --prompt '把 hello 写入 ../outside.txt'
+# [Permission] write_file: deny (workspace-boundary) - Writing outside ...
+
+# 统一入口
+npm run agent-tutorial -- run --chapter 3 --prompt '读取 README.md,然后把一句摘要写入 chapter3-note.txt'</code></pre>
+        <p><b>注意这次没有弹审批框</b>——你根本没有机会批准它。<code>code/</code> 的上一级目录里不会出现 <code>outside.txt</code>。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>常见报错排查表 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:40%">现象</th><th>原因 / 处理</th></tr>
+          <tr><td>审批框一闪而过,出现「无交互输入,默认拒绝。」</td><td>非交互终端(CI/管道/某些 IDE 面板)。在真实 PowerShell 窗口跑。这是 fail closed 的正确行为,不是 bug</td></tr>
+          <tr><td>输入 Y(大写)/ yes</td><td>都行,代码做了 <code>toLowerCase()</code>,只接受 <code>y</code> 和 <code>yes</code></td></tr>
+          <tr><td>每写一个文件都要批一次</td><td>本章刻意不做「永久允许」,正常行为</td></tr>
+          <tr><td>read_file 也进审计,很吵</td><td>审计记录的是<b>每一个</b>最终决定;输出在 stderr,<code>2&gt;$null</code> 可临时屏蔽</td></tr>
+          <tr><td><code>Error [permission_evaluation_error]</code></td><td>权限系统自身故障(规则实现 bug、审计写失败)。fail closed 兜底,handler 没执行</td></tr>
+          <tr><td>启动报 approvalProvider is required</td><td>自己调 buildAgent() 时没注入审批器/审计器。P03 不允许无边界启动</td></tr>
+          <tr><td>只读命令 shell 也要批准</td><td><code>effect === "execute"</code> 一律 ask,不看命令内容</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="verify">
+    <h2><span class="num">🧪</span> 验证与实验</h2>
+    <div class="sec-desc"><code>npm run test:ch03</code> 执行 10 个测试文件、61 个测试。本章新增两个,其余 8 个是前两章累计测试,保证加权限没改坏旧行为。</div>
+    <table>
+      <tr><th style="width:30%">测试文件</th><th>验证内容</th></tr>
+      <tr><td><code>permissions.test.ts</code></td><td>PermissionDecision 构造校验、规则合并优先级、审批 fail closed 全部分支、工作区硬边界、审计调用时机</td></tr>
+      <tr><td><code>ch03-permissions.test.ts</code></td><td>端到端:审批器有没有被调用、副作用有没有发生、消息是否配对、回填内容是否精确</td></tr>
+      <tr><td>其余 8 个</td><td>前两章累计测试(loop/files/shell/messages/profiles/config/openai-chat)</td></tr>
+    </table>
+    <div class="callout warn"><span class="lab">只断言「返回了错误」不够</span> 一个实现可能先执行副作用再返回错误,测试照样通过。<code>ch03-permissions.test.ts</code> 用三类更硬的断言:<code>expect(approval.requests).toEqual([])</code>(审批器没被调用)+ <code>readFile(outside).rejects</code>(文件没被创建)+ <code>validateToolPairing(result.history)</code>(消息仍完整)。测试断言的回填文本是<b>逐字精确</b>的——改任何一条 reason 文案都会让测试变红,这是有意的。</div>
+
+    <details class="card">
+      <summary>四个建议动手做的小实验 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:28%">实验</th><th>预期</th><th>学到什么</th></tr>
+          <tr><td><b>一·让规则 matcher 抛异常</b><br><small>matches 改成 <code>() =&gt; { throw new Error("boom"); }</code></small></td><td>得到 deny,source 是 confirm-file-write,reason 是 <code>Permission rule failed: ...</code></td><td>规则故障导向拒绝,而不是「这条规则不算」</td></tr>
+          <tr><td><b>二·加一条 allow 规则</b><br><small>追加 match 恒 true 的 allow-everything</small></td><td>写 <code>../outside.txt</code> 仍是 deny (workspace-boundary)</td><td>allow 加多少条都赢不了 deny——亲手确认最重要的不变量</td></tr>
+          <tr><td><b>三·审批器返回 passthrough</b><br><small>假审批器返回弃权</small></td><td>最终 deny,source 是 approval</td><td>ask 只能被 allow/deny 收敛,弃权算拒绝</td></tr>
+          <tr><td><b>四·让审计器抛异常</b><br><small>TerminalAuditSink.record 直接 throw</small></td><td><code>Error [permission_evaluation_error]</code>,且文件没被读</td><td>审计不是「顺便记一下」,它是执行前置条件</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">📝</span> 本章小结</h2>
+    <div class="sec-desc">三句话版本、一定要记住的七条、以及本章<b>还没做什么</b>。</div>
+
+    <div class="callout"><span class="lab">三句话版本</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>权限判断必须在代码的固定位置——prepare 之后、invoke 之前,Prompt 做不到这个保证。</li>
+        <li>决定不是 boolean 而是四态,因为「需要问一下」和「我不表态」都必须能表达出来。</li>
+        <li>deny &gt; ask &gt; allow &gt; passthrough:任何一个参与方的拒绝,都不能被其他人的允许推翻。</li>
+      </ol>
+    </div>
+
+    <details class="card" open>
+      <summary>一定要记住的七条 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:6%">#</th><th>结论</th><th style="width:24%">出现在哪一节</th></tr>
+          <tr><td>1</td><td>顺序是 prepare → permission → handler,反了就只剩日志价值</td><td>插入 Agent Loop</td></tr>
+          <tr><td>2</td><td>硬边界的 deny 出现时,审批框根本不弹</td><td>工作区边界先于规则</td></tr>
+          <tr><td>3</td><td>「没有得到明确的 yes」和「得到明确的 no」等价——七种情况都是 deny</td><td>ask 必须得到显式 allow</td></tr>
+          <tr><td>4</td><td>审批器返回值按 unknown 处理,用 instanceof 验证</td><td>ask 必须得到显式 allow</td></tr>
+          <tr><td>5</td><td>审批只授权这一次,不存在「永久允许」</td><td>ask 必须得到显式 allow</td></tr>
+          <tr><td>6</td><td>审计记录最终决定且发生在执行之前;审计失败则不执行</td><td>审计记录最终决定</td></tr>
+          <tr><td>7</td><td>execute 一律 ask,不按命令文本猜风险</td><td>Shell 为什么一律 ask</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>本章代码边界(明确「还没做什么」) <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th>已经有</th><th>还没有</th><th style="width:20%">在哪一章补</th></tr>
+          <tr><td>四态决定 + 优先级合并</td><td>Hook 提出建议(recommendations 通道已预留)</td><td>第 4 章</td></tr>
+          <tr><td>一条内置规则</td><td>配置文件分层(Managed / Project / User)</td><td>不做</td></tr>
+          <tr><td>单次调用审批</td><td>永久允许、规则热更新</td><td>不做</td></tr>
+          <tr><td>审批 + 审计</td><td>独立模型审查、执行后自动验证</td><td>不做</td></tr>
+          <tr><td>shell 一律 ask</td><td>按风险分级的差异化默认值</td><td>不做(教学取更严格的默认值)</td></tr>
+          <tr><td>最终决定进审计</td><td>性能指标、告警、幂等去重</td><td>部分见第 11 章</td></tr>
+          <tr><td>execute 需审批</td><td>操作系统级沙箱隔离</td><td>不做。审批不等于隔离</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>检查你是否真的读懂了(不看文章回答) <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li>一次 glob 调用,四个参与方分别产出什么候选?最终 source 是什么?</li>
+          <li>为什么 boolean 表达不了「需要问一下」?举出规则乙那种「不表态」的问题。</li>
+          <li>候选集合是 [deny, ask] 时,用户会看到审批框吗?为什么?</li>
+          <li>审批器抛异常,最终 behavior 是什么?如果换成「默认允许」会有什么风险?</li>
+          <li>审计器抛异常,handler 执行了吗?模型收到什么?</li>
+          <li>第 3 章的 Agent Loop 比第 2 章多了几处改动?</li>
+          <li>toToolResult() 为什么只允许 deny 调用?</li>
+        </ol>
+        <div class="callout"><span class="lab">提示</span> 答不上来的,回 <a href="#wire">真实决策过程</a> 和 <a href="#concepts">核心概念</a> 再看一遍,然后做下面的测验。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+
+  <div class="pagenav">
+    <a class="prev" href="第二章glm生成.html"><span class="lbl">上一章</span>← 加一个工具只需加一行</a>
+    <a class="next" href="第四章glm生成.html"><span class="lbl">下一章</span>用 Hook 解耦 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 3 章 / 共 20 章</footer>
+<script>
+const cases=[
+  {tool:"read_file",efx:"read",args:{path:"src/main.ts"},desc:"读取工作区内文件"},
+  {tool:"glob",efx:"read",args:{pattern:"**/*.ts"},desc:"查找文件(只读)"},
+  {tool:"write_file",efx:"write",args:{path:"note.txt",content:"hello"},desc:"写入工作区内文件"},
+  {tool:"write_file",efx:"write",args:{path:"../outside.txt",content:"x"},desc:"写入工作区外!"},
+  {tool:"edit_file",efx:"write",args:{path:"note.txt",old_text:"a",new_text:"b"},desc:"编辑工作区内文件"},
+  {tool:"shell",efx:"execute",args:{command:"Get-ChildItem"},desc:"执行 PowerShell"},
+];
+let sel=0;
+const picksEl=document.getElementById("picks"),argsEl=document.getElementById("args"),gatesEl=document.getElementById("gates"),finalEl=document.getElementById("final");
+function render(){
+  picksEl.innerHTML=cases.map((c,i)=>`<div class="pick ${i===sel?'sel':''}" data-i="${i}"><div class="pn">${c.tool}</div><div class="pe">${c.efx} · ${c.desc}</div></div>`).join("");
+  const c=cases[sel];
+  argsEl.innerHTML=`参数:<b>${JSON.stringify(c.args)}</b>`;
+  // gates
+  const isWrite=c.efx==="write", isExec=c.efx==="execute", outOfWs=c.args.path&&c.args.path.includes("..");
+  let g1 = outOfWs ? {v:"deny",t:"工作区外写入,硬拒绝",on:true} : {v:"pass",t:"工作区内,放行进入规则层",on:true};
+  let g2 = isExec ? {v:"ask",t:"effect=execute → Shell 默认 ask",on:true} : isWrite ? {v:"ask",t:"confirm-file-write 规则命中 → ask",on:true} : {v:"pass",t:"read 无规则反对",on:true};
+  let g3 = (isExec||isWrite)&&!outOfWs ? {v:"ask",t:"需终端输入 y/yes 才 allow,否则 deny",on:true} : {v:"pass",t:"无需审批",on:!outOfWs};
+  const vmap={deny:"v-deny",ask:"v-ask",allow:"v-allow",pass:"v-pass"};
+  const labels={deny:"DENY",ask:"ASK",allow:"ALLOW",pass:"PASS"};
+  gatesEl.innerHTML=`
+    <div class="gate ${g1.on?'on':''}"><div class="gn">① 工作区硬边界<span class="ix">WorkspaceWriteBoundary</span></div><div class="gd">${g1.t}</div><div class="verdict ${vmap[g1.v]}">${labels[g1.v]}</div></div>
+    <div class="gate ${g2.on?'on':''}"><div class="gn">② 规则层<span class="ix">PermissionRule</span></div><div class="gd">${g2.t}</div><div class="verdict ${vmap[g2.v]}">${labels[g2.v]}</div></div>
+    <div class="gate ${g3.on?'on':''}"><div class="gn">③ 显式审批<span class="ix">ApprovalProvider</span></div><div class="gd">${g3.t}</div><div class="verdict ${vmap[g3.v]}">${labels[g3.v]}</div></div>`;
+  // final: strongest
+  let final;
+  if(g1.v==="deny") final="deny";
+  else if(g2.v==="ask"||g3.v==="ask") final="ask";
+  else final="allow";
+  const fmsg={deny:"✗ 拒绝(permission_denied)· 不调用 handler,仍回填配对结果","ask":"? 需审批 · 终端只接受 y/yes,其余一律 deny","allow":"✓ 允许 · 执行 handler,审计最终决定"};
+  finalEl.className="perm-final show "+final;
+  finalEl.innerHTML=`<b>最终决定:${labels[final.toUpperCase()].toLowerCase()}</b><br><span style="font-size:.85rem">${fmsg[final]}</span>`;
+}
+picksEl.addEventListener("click",e=>{const p=e.target.closest(".pick");if(p){sel=+p.dataset.i;render();}});
+render();
+
+const questions=[
+  {q:"权限策略应该插在哪个固定位置?",o:["模型调用之前","ToolRegistry.prepare 之后、invoke 之前","handler 执行之后","回填 tool message 之后"],a:1,e:"固定顺序:prepare → PermissionPolicy.decide → invoke。权限在副作用发生前的确定性边界,handler 还没跑。先执行再判断审批就只剩日志价值。"},
+  {q:"权限四态中,「不发表意见,交给其他规则或默认值」的是?",o:["allow","deny","ask","passthrough"],a:3,e:"passthrough 表示当前参与方不表态。只有全部 passthrough/无参与方时才默认 allow(落在没有规则反对的读取上)。"},
+  {q:"合并优先级 deny > ask > allow > passthrough 意味着?",o:["先到先得","deny 永远不能被其他层级的 allow 覆盖","ask 比 deny 更强","allow 和 deny 同级"],a:1,e:"任何层级的 deny 都不能被其他层级的 allow 覆盖。这与 Claude Code 官方权限文档一致。Hook 的 allow 也只是建议,系统 deny 仍优先。"},
+  {q:"工作区外写入为什么必须在规则之前拒绝?",o:["规则层太慢","项目规则/Hook/人工批准都不能放宽工作区硬边界,且不能先弹审批框","为了节省 token","OpenAI API 要求"],a:1,e:"WorkspaceWriteBoundary 先于规则判断。../outside.txt 即使规则允许、Hook 建议允许、用户输入 y,仍必须 deny,且不调用审批器。fail closed。"},
+  {q:"为什么 shell 一律 ask,不用关键词黑名单?",o:["黑名单太长","Get-Content 看似只读但参数可指向工作区外、可调脚本/子进程/网络,黑名单既不完整又易绕过","黑名单影响性能","OpenAI 不支持"],a:1,e:"只要 effect=execute 就默认 ask。关键词匹配 Remove-Item 既不完整也容易绕过(换写法)。审批只授权当次调用,不保存永远允许。"},
+  {q:"什么是 fail closed?审批器抛异常时?",o:["默认放行,避免卡住","默认拒绝,不把「无法判断」解释成「可以执行」","重试三次","记录日志后放行"],a:1,e:"权限依赖失败时拒绝。审批器异常、返回 boolean、再次返回 ask、无交互 stdin、用户回车——全部变 deny。规则异常/审计异常同理,不降级放行。"},
+  {q:"权限拒绝后,被拒绝的 tool_call 还会回填结果吗?",o:["不会,直接跳过","会,生成 permission_denied 结果,靠 tool_call_id 配对回填","只在审计里记录","变成新的 user 消息"],a:1,e:"权限拒绝仍生成与原调用 ID 配对的 tool result(permission_denied)。validateToolPairing 每轮检查配对。模型能看到它提出的调用确实被拒绝了。"},
+  {q:"P02 和 P03 对「工作区外写入」的处理差异是?",o:["P02 直接拒绝,P03 放行","P02 由文件 handler 返回 path_escape;P03 在 handler 之前由权限硬边界拒绝并审计","两者完全相同","P03 不再检查路径"],a:1,e:"P02 的 write_file 仍过 safePath 返回 path_escape(保留旧错误语义);P03 把这类写入提前到 handler 之前,以 permission_denied 拒绝并审计。P03 只增加 policy capability。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!权限边界你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看 deny 优先和 fail closed":"📚 重看核心概念和模拟器";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

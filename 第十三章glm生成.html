@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 13 章 · 从串行到异步</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  .bg-sim{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .bg-timeline{display:flex;flex-direction:column;gap:6px;font-family:monospace;font-size:.8rem}
+  .bg-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border)}
+  .bg-row.main{border-left:3px solid var(--accent)}.bg-row.bg{border-left:3px solid var(--warn)}.bg-row .t{color:var(--faint);width:50px;flex-shrink:0}.bg-row .act{flex:1}.bg-row .tag{font-size:.68rem;padding:1px 6px;border-radius:4px;background:var(--code-bg);color:var(--muted)}
+  .bg-row .tag.sync{color:var(--accent)}.bg-row .tag.bg{color:var(--warn)}.bg-row .tag.done{color:var(--ok)}
+  .bg-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 13 章</span>
+  <span class="title">从串行到异步 <span class="muted">· Agent架构实操十三</span></span>
+  <nav><a href="#concepts">概念</a><a href="#sim">后台执行演示</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>从串行到异步:慢操作填坑指南</h1>
+    <div class="sub">npm install 要几分钟,Agent 像被暂停。问题不在等待本身,而在等待期间能否完成别的工作。本章:工具调用通过校验/审批后,先返回后台占位,完成后通过 typed runtime event 回到同一 Loop。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 14 分钟</span>
+      <span class="pill">🔄 后台 job</span>
+      <span class="pill">📥 EventInbox</span>
+      <span class="pill">+background</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>后台化改变的是「谁等待结果」还是「谁拥有权限」?</li>
+        <li>run_in_background 三态(true/false/null)分别什么决策?</li>
+        <li>为什么后台提交必须在权限之后,不能先创建 worker 再补权限?</li>
+        <li>EventInbox 传递什么?能接收普通字典或伪 tool result 吗?</li>
+        <li>后台只后台化了哪个工具?Cron/teammate/后台subagent 在范围内吗?</li>
+        <li>工具执行顺序在后台下变了几条?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 后台改变「谁等待」,不改变「谁拥有权限」 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>第12章 Task DAG 描述「要做什么」,不替你执行慢命令。第13章增加生命周期:工具调用通过参数校验、Hook、权限和审批后,先返回后台占位,完成后通过 typed runtime event 回到同一 Loop。</p>
+        <div class="callout ok"><span class="lab">工具执行顺序仍只有一条</span> PreToolUse → 硬权限/审批 → 同步分发<b>或</b>后台提交 → PostToolUse → 追加恰好一个匹配的 tool result。后台只改变「谁等待结果」,不改变「谁拥有权限」。</div>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 显式参数是三态 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>只有 P13 主 Agent 的 shell schema 增加 run_in_background;P01-P12 和一次性 subagent 仍只看到 command。</p>
+        <table><tr><th>输入</th><th>决策</th></tr><tr><td>true</td><td>强制后台</td></tr><tr><td>false</td><td>强制同步,即使命中慢命令关键词</td></tr><tr><td>null 或省略</td><td>才使用启发式</td></tr></table>
+        <p>启发式只判断慢命令关键词(cargo build/npm install/pip install/pytest 等),不预测任意命令耗时。concurrency:"background_eligible" 是第二道门,没该标记的工具永远直接执行。</p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 为什么提交必须在权限之后 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>AgentRunner 唯一工具执行点:先解析 JSON+Zod,再 Pre Hook+PermissionPolicy,最后才调可注入的 ToolDispatcher。Dispatcher 拿到的是 Hook 改写后、权限审查过的 PreparedToolCall。</p>
+        <div class="callout bad"><span class="lab">禁止软边界</span> 把 worker 提前创建再补权限会留竞态:拒绝结果还没返回,副作用已经开始。正确顺序:Pre Hook 阻断→不创建job;权限拒绝→不创建job不启动executor;权限通过后→容量检查→持久化running→登记worker。</div>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 五个角色的责任边界 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>角色</th><th>责任</th><th>不负责</th></tr><tr><td>BackgroundDispatcher</td><td>判断同步/后台,提交已获批调用</td><td>不做权限判断,不重放原始JSON</td></tr><tr><td>JobSupervisor</td><td>持有worker,控制容量/超时/取消/关闭/终态</td><td>不充当Task DAG</td></tr><tr><td>query/cancel_background_job</td><td>按job_id查询/取消持久化后台job</td><td>不暴露给subagent与P01-P12</td></tr><tr><td>EventInbox</td><td>FIFO传递typed RuntimeEvent</td><td>不接收普通字典或伪tool result</td></tr><tr><td>JsonBackgroundJobStore</td><td>workspace内原子保存job状态</td><td>不盲目重放崩溃前未知副作用</td></tr></table>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 范围:只后台化 PowerShell <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>本章只后台化 P13 主 Agent 的 PowerShell 工具。Cron、持续 teammate、后台 subagent、输出流文件、交互式提示看门狗<b>不在范围内</b>(后续章节)。</p>
+        <p>Task、TODO、Hook、权限、恢复、记忆、动态 Prompt 和上下文压缩全部保留,不复制第二套 Loop。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:同步 vs 后台</h2>
+    <div class="sec-desc">对比同步阻塞和后台执行:后台job先返回占位,主循环继续干别的,job完成后通过 EventInbox 回到 Loop。</div>
+    <div class="bg-sim">
+      <div class="bg-ctrl">
+        <button class="btn primary" id="sync">同步: npm install(阻塞)</button>
+        <button class="btn" id="bg">后台: npm install(异步)</button>
+        <button class="btn" id="reset">↺ 重置</button>
+      </div>
+      <div class="bg-timeline" id="tl"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">后台只改变「谁等待结果」,不改变「谁拥有权限」——提交必须在权限之后</div>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第十二章glm生成.html"><span class="lbl">上一章</span>← 任务引擎</a>
+    <a class="next" href="第十四章glm生成.html"><span class="lbl">下一章</span>Cron 调度器 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 13 章 / 共 20 章</footer>
+<script>
+const tl=document.getElementById("tl");
+let t=0;
+function row(time,act,tag,cls){return `<div class="bg-row ${cls}"><span class="t">${time}</span><span class="act">${act}</span><span class="tag ${tag}">${tag}</span></div>`;}
+document.getElementById("sync").onclick=()=>{
+  t=0;tl.innerHTML="";
+  const steps=[["0s","主循环: 调用 shell(npm install)","sync","main"],["0s","权限审批通过 → 同步执行","sync","main"],["—","⏳ 阻塞等待 3 分钟...主循环卡住","sync","main"],["3m","npm install 完成 → 返回结果","done","main"],["3m","主循环恢复,处理结果","done","main"]];
+  let i=0;const iv=setInterval(()=>{if(i>=steps.length){clearInterval(iv);return;}tl.innerHTML+=row(...steps[i]);i++;},500);
+};
+document.getElementById("bg").onclick=()=>{
+  t=0;tl.innerHTML="";
+  const steps=[["0s","主循环: 调用 shell(npm install, run_in_background:true)","bg","main"],["0s","权限审批通过 → 后台提交,返回 job 占位","bg","main"],["0s","主循环立即继续: 读取 README.md","sync","main"],["1s","主循环: 编辑文件","sync","main"],["—","...后台 job 仍在跑,主循环不阻塞...","bg","bg"],["3m","后台 job 完成 → EventInbox 收到 typed event","done","bg"],["3m","runEvents() 执行 event-only turn,回填结果","done","main"]];
+  let i=0;const iv=setInterval(()=>{if(i>=steps.length){clearInterval(iv);return;}tl.innerHTML+=row(...steps[i]);i++;},500);
+};
+document.getElementById("reset").onclick=()=>{tl.innerHTML="";};
+
+const questions=[
+  {q:"后台化改变的是「谁等待结果」还是「谁拥有权限」?",o:["谁拥有权限","谁等待结果:后台只改变谁等待,不改变谁拥有权限;工具仍经过Hook和权限","两者都改","都不改"],a:1,e:"工具执行顺序仍只有一条:PreToolUse→硬权限/审批→同步或后台提交→PostToolUse→追加一个匹配tool result。后台只改变谁等待结果,不改变谁拥有权限。"},
+  {q:"run_in_background 三态中,null 或省略表示?",o:["强制后台","强制同步","才使用启发式(判断慢命令关键词)","报错"],a:2,e:"true强制后台;false强制同步(即使命中慢命令关键词);null或省略才用启发式。启发式只判断cargo build/npm install/pip install/pytest等关键词,不预测任意命令耗时。"},
+  {q:"为什么后台提交必须在权限之后?",o:["性能","先创建worker再补权限会留竞态:拒绝结果还没返回副作用已开始;正确是Pre Hook阻断/权限拒绝都不创建job,权限通过后才容量检查→持久化running→登记worker","避免死锁","OpenAI要求"],a:1,e:"Dispatcher拿到的是Hook改写后、权限审查过的PreparedToolCall。禁止软边界。正确顺序:Pre Hook阻断→不创建job;权限拒绝→不创建job不启动executor;权限通过→容量检查→持久化running→登记worker。"},
+  {q:"EventInbox 传递什么?能接收普通字典吗?",o:["普通字典","FIFO传递typed RuntimeEvent,不接收普通字典或伪tool result","字符串","任意JSON"],a:1,e:"EventInbox是typed FIFO交接通道。后台job完成后产生typed RuntimeEvent进入EventInbox,AgentRunner.runEvents()空闲时执行event-only turn,工具仍经过Hook与权限。"},
+  {q:"第13章只后台化了哪个工具?Cron/teammate 在范围内吗?",o:["所有工具","只后台化P13主Agent的PowerShell;Cron/持续teammate/后台subagent/输出流文件/交互式提示看门狗不在范围内","read_file","glob"],a:1,e:"本章只后台化P13主Agent的shell。只有P13主Agent的shell schema增加run_in_background;P01-P12和一次性subagent仍只看到command。后续章节才处理Cron/teammate等。"},
+  {q:"query_background_job / cancel_background_job 暴露给谁?",o:["所有Agent","只P13主Agent,不暴露给subagent与P01-P12","只subagent","只Lead"],a:1,e:"这两个工具按job_id查询/取消持久化后台job,不暴露给subagent与P01-P12。JsonBackgroundJobStore在workspace内原子保存job状态,不盲目重放崩溃前未知副作用。"},
+  {q:"concurrency: \"background_eligible\" 标记的作用?",o:["强制后台","第二道门:没有该标记的工具永远直接执行,即使run_in_background:true","跳过权限","跳过Hook"],a:1,e:"启发式是第一道(判断慢命令关键词),concurrency标记是第二道门。run_in_background三态显式输入优先。没有background_eligible标记的工具永远直接同步执行。"},
+  {q:"后台job完成后,结果如何回到主循环?",o:["直接写进canonical history","通过EventInbox收到typed RuntimeEvent,runEvents()执行event-only turn回填,工具仍经过Hook与权限","通过新turn","通过user消息"],a:1,e:"后台job完成→EventInbox收到typed RuntimeEvent→AgentRunner.runEvents()空闲时执行event-only turn→工具仍经过Hook与权限→回填匹配的tool result。不直接写canonical,不绕过权限。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!异步执行你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看三态和权限顺序":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

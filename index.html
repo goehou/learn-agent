@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 架构实操 · 20 章交互式学习入口</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#131a2e; --panel2:#1a2338; --line:#2a3550;
+    --text:#e8edf7; --muted:#9aa7c2; --accent:#5b8cff; --accent2:#8b5bff;
+    --ok:#3ecf8e; --bad:#ff5d6c; --warn:#ffc24b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.16), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(139,91,255,.14), transparent 55%),
+      var(--bg);
+    color:var(--text); line-height:1.7; min-height:100vh;
+  }
+  a{color:var(--accent); text-decoration:none}
+  .wrap{max-width:1120px; margin:0 auto; padding:28px 20px 90px}
+
+  header.top{
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:linear-gradient(135deg,#151d33,#101527);
+    padding:34px 32px; position:relative; overflow:hidden; text-align:center;
+  }
+  header.top::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(500px 200px at 50% -60px, rgba(139,91,255,.25), transparent 70%);
+  }
+  .logo-badge{
+    display:inline-flex; align-items:center; gap:8px; font-size:13px; letter-spacing:2px;
+    padding:6px 16px; border-radius:30px; color:#c3abff;
+    background:rgba(139,91,255,.14); border:1px solid rgba(139,91,255,.4); margin-bottom:18px;
+    position:relative; z-index:1;
+  }
+  h1{font-size:clamp(24px,3.6vw,34px); position:relative; z-index:1}
+  .subtitle{color:var(--muted); margin-top:10px; font-size:15px; position:relative; z-index:1}
+  .hero-stats{display:flex; justify-content:center; gap:26px; margin-top:22px; flex-wrap:wrap; position:relative; z-index:1}
+  .stat{text-align:center}
+  .stat b{display:block; font-size:26px; color:var(--text)}
+  .stat span{font-size:12.5px; color:var(--muted)}
+
+  .toolbar{display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:26px 0 8px}
+  .search{
+    flex:1 1 280px; display:flex; align-items:center; gap:10px; background:var(--panel);
+    border:1px solid var(--line); border-radius:12px; padding:0 16px; height:48px;
+  }
+  .search input{
+    flex:1; background:transparent; border:none; outline:none; color:var(--text);
+    font-size:14.5px; font-family:inherit;
+  }
+  .search input::placeholder{color:#5d6b8a}
+  .filter-group{display:flex; gap:8px; flex-wrap:wrap}
+  .chip-filter{
+    padding:8px 14px; border-radius:20px; border:1px solid var(--line); background:var(--panel);
+    color:var(--muted); font-size:13px; cursor:pointer; transition:.15s; font-family:inherit;
+  }
+  .chip-filter:hover{color:var(--text); border-color:var(--accent)}
+  .chip-filter.active{color:#fff; border-color:transparent; background:linear-gradient(135deg,var(--accent),var(--accent2))}
+
+  .phase-title{display:flex; align-items:center; gap:12px; margin:34px 0 16px; font-weight:700}
+  .phase-title .dot{width:12px; height:12px; border-radius:4px}
+  .phase-title .pname{font-size:20px}
+  .phase-title .pdesc{color:var(--muted); font-size:13px; font-weight:400}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px}
+
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 20px; cursor:pointer; transition:.18s; display:flex; flex-direction:column; gap:10px;
+    position:relative; overflow:hidden;
+  }
+  .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--cardColor,#5b8cff); opacity:.85}
+  .card:hover{transform:translateY(-4px); border-color:var(--cardColor,#5b8cff); box-shadow:0 12px 30px rgba(0,0,0,.35)}
+  .card-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
+  .card-num{
+    font-size:12px; color:#c8d6ff; background:rgba(91,140,255,.14); border:1px solid rgba(91,140,255,.3);
+    padding:3px 10px; border-radius:20px; font-weight:700;
+  }
+  .card-status{font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px}
+  .card-status.done{color:var(--ok)}
+  .card h3{font-size:15.5px; line-height:1.45; color:#dce6ff}
+  .card .tagline{font-size:13px; color:var(--muted); line-height:1.5; min-height:2.6em}
+  .card .overview{
+    font-size:12.5px; color:#b6c2dc; line-height:1.6; display:-webkit-box;
+    -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .card .meta{display:flex; justify-content:space-between; align-items:center; margin-top:2px; font-size:12px; color:#5d6b8a}
+  .card .go{
+    align-self:flex-end; font-size:13px; font-weight:700; color:var(--cardColor,#5b8cff);
+    display:inline-flex; align-items:center; gap:4px;
+  }
+  .empty{display:none; text-align:center; color:var(--muted); padding:50px; border:1px dashed var(--line); border-radius:var(--radius); margin:20px 0}
+  .empty.show{display:block}
+
+  .legend{display:flex; gap:18px; flex-wrap:wrap; align-items:center; margin:18px 0 4px; font-size:12.5px; color:var(--muted)}
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .legend .sw{width:12px; height:12px; border-radius:3px; display:inline-block}
+
+  footer{margin-top:44px; text-align:center; color:#5d6b8a; font-size:12.5px; border-top:1px solid var(--line); padding-top:18px}
+  .to-top{
+    position:fixed; right:22px; bottom:22px; width:44px; height:44px; border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); transition:.2s; z-index:50;
+  }
+  .to-top:hover{transform:translateY(-3px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="logo-badge">🤖 AGENT ARCHITECTURE</div>
+    <h1>Agent 架构实操 · 20 章交互式学习</h1>
+    <div class="subtitle">从最小 Agent Loop 到完整 Harness——每章一个核心能力，含知识点、流程、术语与 QA 自测题（deepseek 系列）</div>
+    <div class="hero-stats">
+      <div class="stat"><b>20</b><span>章教程</span></div>
+      <div class="stat"><b>120</b><span>道 QA 自测题</span></div>
+      <div class="stat"><b>100</b><span>个核心知识点</span></div>
+      <div class="stat"><b>20</b><span>个学习页面</span></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="search">
+      <input id="searchInput" type="text" placeholder="搜索章节标题、关键词（如 MCP、Worktree、权限、Cron）…">
+    </div>
+    <div class="filter-group" id="filterGroup"></div>
+  </div>
+
+  <div class="legend">
+    <span><i class="sw" style="background:#3ecf8e"></i>已通过（答对该章全部题）</span>
+    <span><i class="sw" style="background:#ffc24b"></i>学习中（部分作答）</span>
+    <span><i class="sw" style="background:#2a3550"></i>未开始</span>
+    <span>点击卡片进入对应章节学习页</span>
+  </div>
+
+  <div id="phasesWrap"></div>
+  <div class="empty" id="emptyBox">没有匹配的章节，换个关键词试试～</div>
+
+  <footer>Agent 架构实操 · 交互式学习入口 · 打开 index.html 即可浏览全部 20 章（deepseek 系列）</footer>
+</div>
+
+<button class="to-top" id="toTop" title="回到顶部">↑</button>
+
+<script id="chapters-data" type="application/json">[{"num":1,"file":"第一章deepseek生成.html","title":"Agent Loop：一个循环，就是模型与真实世界之间的全部距离","tag":"核心：模型提出工具调用 → 程序执行工具 → 结果放回消息历史 → 继续问模型，直到不再调用工具。","overview":"本章只讲 Agent 最核心的 Agent Loop。它是一个有界 for 循环：模型提出工具调用，程序执行，结果回填消息历史，再继续问模型，直到模型不再调工具。真正的智能全在模型里，循环只是模型的手脚。Agent = LLM + 上下文 + 工具。","quizCount":6},{"num":2,"file":"第二章deepseek生成.html","title":"给 Agent 加一个工具，只需要加一行","tag":"新增四个文件工具 read_file / write_file / edit_file / glob；Agent Loop 不需要改。","overview":"本章给 Agent 增加四个专用文件工具，P02 共五个工具。核心是『加一个工具只需注册一次 ToolDefinition』——循环只认识『一次调用返回一个结果』的抽象协议。文件路径统一受 safePath 工作区边界保护。","quizCount":6},{"num":3,"file":"第三章deepseek生成.html","title":"深度拆解复刻 Claude Code 权限系统","tag":"权限不是 boolean，而是四态：allow / deny / ask / passthrough，优先级 deny > ask > allow。","overview":"把结构化权限策略插进工具准备和 handler 执行之间。模型只能提出调用请求，是否执行由 Harness 决定。Shell 一律 ask，工作区外写入是系统硬拒绝；每个最终决定进入审计。","quizCount":6},{"num":4,"file":"第四章deepseek生成.html","title":"顶级 AI Agent 是如何利用 Hook 解耦的","tag":"四个结构化挂载点：UserPromptSubmit / PreToolUse / PostToolUse / Stop。","overview":"在现有 Agent Loop 中加入四个 Hook 挂载点，同时不破坏消息配对、工具校验和权限边界。Hook 是 Agent 内部生命周期的拦截点：日志、补上下文、改写工具输入输出、建议权限或控制是否续跑。Hook 的 allow 只是建议，不能绕过系统 deny。","quizCount":6},{"num":5,"file":"第五章deepseek生成.html","title":"为什么上下文越长，系统提示词越没用","tag":"会话级 todo_write：完整快照替换 + 三轮陈旧提醒。","overview":"长上下文里早期目标会被不断增长的局部信息稀释。本章把计划变成结构化状态：todo_write 每次返回完整 TODO 列表的稳定 JSON 快照；连续三轮其他工具没有更新计划时，下一次模型请求注入一条临时提醒。提醒只进当次请求，不污染正式历史。","quizCount":6},{"num":6,"file":"第六章deepseek生成.html","title":"从“单兵死磕”到“分身协作”：复杂任务下 AI Agent 的工程化突围","tag":"新增 task 工具：一次性 Subagent，隔离历史，共享运行边界。","overview":"把一个自包含子任务交给一次性 Subagent，让它从全新历史开始探索。父 Agent 最后只接收一句有证据的结论。历史隔离不等于沙箱：父子共享同一进程、Hook、权限、workspace 和 identity。","quizCount":6},{"num":7,"file":"第七章deepseek生成.html","title":"别再硬塞 Prompt 了！手把手教你搭建一套工业级的 Agent Skill 技能系统","tag":"两级加载：Skill 目录常驻（名称+描述），正文按需 load_skill。","overview":"让 Agent 先知道『有哪些规范可用』，但不用启动时读完所有正文。目录让模型能做选择，正文只在真正需要时付出上下文成本。skill 名称安全 slug，路径校验严格；正文不能放宽权限。","quizCount":6},{"num":8,"file":"第八章deepseek生成.html","title":"拆解复刻 Claude Code 核心设计：四级压缩法干掉上下文膨胀","tag":"四层：大结果落盘 → snip → micro → 模型摘要。先便宜，后昂贵。","overview":"管理信息生命周期：大结果放哪里、旧内容怎样降级、哪些消息绝不能拆开、压缩后如何追溯。canonical history 与 request history 分离是核心边界。","quizCount":6},{"num":9,"file":"第九章deepseek生成.html","title":"从上下文压缩到文件级持久化：彻底解决 AI Agent 的健忘症","tag":"跨会话文件记忆：manifest 唯一权威 + 原子提交 + 锁。","overview":"压缩有损且会话结束即失。本章加一层不参与压缩、跨会话保留的存储：Markdown + YAML frontmatter。memory 集合用 manifest 作为唯一权威指针，写入先加锁再 fsync + 原子替换。","quizCount":6},{"num":10,"file":"第十章deepseek生成.html","title":"从“一锅炖”到“模块化”：重塑 AI Agent 的逻辑骨架","tag":"DynamicPromptRenderer 固定顺序渲染：identity → tools → workspace → skills → memory。","overview":"一大段硬编码字符串本质是把配置藏在代码里。本章把 System Prompt 拆成固定顺序、运行态取值的五个 section，每个能力有唯一来源，Prompt 只负责渲染。缓存必须属于会话。","quizCount":6},{"num":11,"file":"第十一章deepseek生成.html","title":"API 韧性即生命：决定 AI Agent 商业化成败的隐藏细节","tag":"三种故障三条路：截断→升级/续写，过长→响应式压缩，429/529→退避/fallback。","overview":"让同一个逻辑模型请求处理输出截断、输入过长和瞬态 API 故障；不污染正式历史、不重复执行 Hook、不隐藏失败。先归一只错误，禁止匹配异常文本。","quizCount":6},{"num":12,"file":"第十二章deepseek生成.html","title":"实战干货：5 个工具、3 个状态，带你撸出一个生产级 Agent 任务引擎","tag":"JSON Task DAG：五工具、三状态、加锁的原子的图持久化。","overview":"回答三个问题：哪些任务现在可以开始？谁已认领、谁有权完成？进程退出后任务图能否原样恢复？Todo 与 Task 分层；Task 只允许 pending/in_progress/completed，阻塞由依赖派生。","quizCount":6},{"num":13,"file":"第十三章deepseek生成.html","title":"从串行到异步：AI Agent 架构演进中的“慢操作”填坑指南","tag":"shell 三态 run_in_background；占位结果 + typed 完成后事件回流。","overview":"工具调用可以先返回后台占位，再在完成后通过 typed RuntimeEvent 回到同一个 Agent Loop。后台只改变谁等待结果，不改变谁拥有权限。","quizCount":6},{"num":14,"file":"第十四章deepseek生成.html","title":"让 Agent 学会看表：Cron 调度器的设计与实现","tag":"schedule_cron + JsonCronStore + CronRuntime + EventInbox 的持久 outbox。","overview":"触发权从『人』转移到『调度器』。要回答：谁解释 cron 和时区？时间到了如何持久记录工作意图？Agent 忙时事件如何不丢？触发时是否仍经过权限？","quizCount":6},{"num":15,"file":"第十五章deepseek生成.html","title":"解密 Claude Code 协作机制：如何通过 Inbox 注入让 AI 队友真正实现“异步通信”","tag":"持续 Teammate + 持久 Mailbox + typed event 进入唯一 Loop。","overview":"有些工作不是问答：队友需要保留历史、接收补充、异步汇报、完成后继续存在。本章实现持续 Teammate、持久 Mailbox，以及把 Mailbox 消息送入公共 Loop 的 typed event 通道。","quizCount":6},{"num":16,"file":"第十六章deepseek生成.html","title":"从“单兵作战”到“自组织团队”，多 Agent 协同的必经之路","tag":"protocol + plan_gate：先登记请求、响应严格匹配、计划硬门控。","overview":"普通 message 只表达内容，不表达『这条回复在解决哪个请求』。本章加确定性运行时协议：请求先持久登记，消息带稳定 ID，响应严格匹配，状态只迁移一次；计划未批准时 effectful 工具无法执行。","quizCount":6},{"num":17,"file":"第十七章deepseek生成.html","title":"从“人肉派发”到“自驱轮询”：多智能体（Agent Team）去中心化协作实战","tag":"TASK_DAG_SQLITE + WORK_STEALING：原子认领 + claim token + 半开 lease。","overview":"让 idle Teammate 按稳定顺序原子认领已解锁任务。扫描与认领必须在一个事务里（避免 TOCTOU）；SQLite BEGIN IMMEDIATE + 条件 UPDATE 保证一次 claim 只成功一次。","quizCount":6},{"num":18,"file":"第十八章deepseek生成.html","title":"多 Agent 并行开发时的文件冲突，到底该怎么解","tag":"受管 Git Worktree：Task / Claim / Binding 三条独立状态线。","overview":"任务所有权不等于文件系统隔离。第 18 章为每个项目任务建立受管 Git Worktree，并在每次工具执行前把可信工作目录解析到当前 claim 对应的 Worktree。手动与自动认领走同一 TaskClaimService。","quizCount":6},{"num":19,"file":"第十九章deepseek生成.html","title":"从静态工具到动态工具池：一次 MCP 接入让我重构了 Agent 架构","tag":"MCP：本地 allowlist 决定能连什么；Registry Snapshot 保证请求一致。","overview":"用官方 MCP TypeScript SDK 连接本地 allowlist 的 stdio server，发现远程工具，把通过本地策略验证的定义动态发布给 Lead，并在断开或故障时原子撤销。远程描述不能授予权限。","quizCount":6},{"num":20,"file":"第二十章deepseek生成.html","title":"Agent 架构设计：工具调用、权限控制、记忆机制、上下文压缩与 MCP 集成","tag":"完整 Harness：统一组合根、单一 AgentRunner、动态上下文、MCP 边界与资源关闭。","overview":"不发明终极框架，不复制第二套 Loop。把前 19 章能力接到同一个组合根，用跨功能场景证明边界同时成立：模型提议，Harness 决策；Prompt 指导，Policy 授权；消息成组、状态各有权威存储、资源有 owner。","quizCount":6}]</script>
+<script id="phases-data" type="application/json">[{"name":"执行基础","range":[1,4],"desc":"从循环、工具、文件边界走到权限和 Hook 生命周期","color":"#5b8cff"},{"name":"上下文与知识","range":[5,10],"desc":"规划、委派、按需加载知识、压缩上下文、持久化记忆、动态提示","color":"#3ecf8e"},{"name":"可靠执行与任务系统","range":[11,14],"desc":"截断、超长输入、限流重试、任务依赖、后台作业和定时触发","color":"#ffc24b"},{"name":"多 Agent 协作与隔离","range":[15,18],"desc":"消息投递、协议闭环、去中心化认领和 Git Worktree 并行开发","color":"#ff5d6c"},{"name":"动态扩展与总装","range":[19,20],"desc":"接入动态 MCP 工具池，再验证完整 Harness 的统一边界","color":"#8b5bff"}]</script>
+<script>
+(function () {
+  const CHAPTERS = JSON.parse(document.getElementById("chapters-data").textContent);
+  const PHASES = JSON.parse(document.getElementById("phases-data").textContent);
+  const cnNum = ["零","一","二","三","四","五","六","七","八","九","十","十一","十二","十三","十四","十五","十六","十七","十八","十九","二十"];
+
+  function chapterProgress(num) {
+    try {
+      const done = Number(localStorage.getItem("quiz_done_" + num) || 0);
+      const correct = Number(localStorage.getItem("quiz_correct_" + num) || 0);
+      return { done, correct };
+    } catch { return { done: 0, correct: 0 }; }
+  }
+
+  function statusOf(ch) {
+    const p = chapterProgress(ch.num);
+    if (ch.quizCount > 0 && p.done >= ch.quizCount && p.correct >= ch.quizCount) return "done";
+    if (p.done > 0) return "learning";
+    return "todo";
+  }
+  function statusHtml(st, ch) {
+    const p = chapterProgress(ch.num);
+    if (st === "done") return '<span class="card-status done">● 已完成 ' + p.correct + "/" + ch.quizCount + "</span>";
+    if (st === "learning") return '<span class="card-status" style="color:var(--warn)">◐ 学习中 ' + p.done + "/" + ch.quizCount + "</span>";
+    return '<span class="card-status">○ 未开始 · ' + ch.quizCount + " 题</span>";
+  }
+
+  const filterGroup = document.getElementById("filterGroup");
+  const allChip = document.createElement("button");
+  allChip.className = "chip-filter active"; allChip.dataset.filter = "all"; allChip.textContent = "全部 20 章";
+  filterGroup.appendChild(allChip);
+  PHASES.forEach(function (ph) {
+    const c = document.createElement("button");
+    c.className = "chip-filter"; c.dataset.filter = "phase" + ph.range[0] + "-" + ph.range[1];
+    c.textContent = ph.name;
+    filterGroup.appendChild(c);
+  });
+  const state = { filter: "all", query: "" };
+
+  function render() {
+    const wrap = document.getElementById("phasesWrap");
+    wrap.innerHTML = "";
+    let shown = 0;
+
+    PHASES.forEach(function (ph) {
+      const inPhase = CHAPTERS.filter(function (c) { return c.num >= ph.range[0] && c.num <= ph.range[1]; });
+      const visible = inPhase.filter(function (c) {
+        const okPhase = state.filter === "all" || state.filter === "phase" + ph.range[0] + "-" + ph.range[1];
+        if (!okPhase) return false;
+        if (!state.query) return true;
+        const hay = (c.title + " " + c.tag + " " + c.overview + " 第" + cnNum[c.num] + "章").toLowerCase();
+        return hay.indexOf(state.query) !== -1;
+      });
+      if (visible.length === 0) return;
+      shown += visible.length;
+
+      const title = document.createElement("div");
+      title.className = "phase-title";
+      title.innerHTML = '<span class="dot" style="background:' + ph.color + '"></span><span class="pname">' + ph.name +
+        ' <span style="color:var(--muted);font-size:13px">第 ' + ph.range[0] + "–" + ph.range[1] + " 章</span></span>" +
+        '<span class="pdesc">' + ph.desc + "</span>";
+      wrap.appendChild(title);
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      visible.forEach(function (c) {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style.setProperty("--cardColor", ph.color);
+        const st = statusOf(c);
+        card.innerHTML =
+          '<div class="card-top"><span class="card-num">第 ' + cnNum[c.num] + " 章</span>" + statusHtml(st, c) + "</div>" +
+          "<h3>" + c.title + "</h3>" +
+          '<div class="tagline">' + c.tag + "</div>" +
+          '<div class="overview">' + c.overview + "</div>" +
+          '<div class="meta"><span>' + c.quizCount + " 道自测题</span><span class='go'>进入学习 →</span></div>";
+        card.addEventListener("click", function () { window.location.href = c.file; });
+        grid.appendChild(card);
+      });
+      wrap.appendChild(grid);
+    });
+
+    document.getElementById("emptyBox").classList.toggle("show", shown === 0);
+  }
+
+  document.getElementById("searchInput").addEventListener("input", function (e) {
+    state.query = e.target.value.trim().toLowerCase();
+    render();
+  });
+  filterGroup.addEventListener("click", function (e) {
+    const chip = e.target.closest(".chip-filter");
+    if (!chip) return;
+    filterGroup.querySelectorAll(".chip-filter").forEach(function (x) { x.classList.remove("active"); });
+    chip.classList.add("active");
+    state.filter = chip.dataset.filter;
+    render();
+  });
+
+  document.getElementById("toTop").addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 20 章 · Agent 架构设计:完整 Harness</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  .arch{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .arch-flow{font-family:monospace;font-size:.76rem;line-height:1.8;background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:14px;overflow:auto}
+  .arch-flow .layer{padding:2px 0}.arch-flow .layer b{color:var(--accent)}.arch-flow .layer.ctrl{color:var(--accent2)}.arch-flow .layer.data{color:var(--teal)}.arch-flow .layer.res{color:var(--warn)}
+  .cap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin:14px 0}
+  .cap{padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:.78rem}
+  .cap .ch{font-weight:700;color:var(--accent);font-family:monospace}.cap .cn{color:var(--muted);font-size:.74rem;margin-top:2px}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 20 章</span>
+  <span class="title">Agent 架构设计:完整 Harness <span class="muted">· Agent架构实操二十</span></span>
+  <nav><a href="#concepts">概念</a><a href="#arch">架构总览</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>Agent 架构设计:工具调用、权限、记忆、压缩与 MCP 集成</h1>
+    <div class="sub">前19章依次加入各种能力。第20章不发明「终极框架」,也不复制第二套 Loop。只做一件事:把已实现的能力接到同一组合根,用跨功能场景证明边界同时成立。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 15 分钟</span>
+      <span class="pill">🏁 full_harness</span>
+      <span class="pill">🔗 边界一致</span>
+      <span class="pill">+full_harness</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>完整 Agent 的核心是功能数量还是边界一致?模型负责什么,Harness 必须拥有什么?</li>
+        <li>P20 新增了业务模块吗?full_harness 是什么?</li>
+        <li>组合根如何检查对象身份?共享关系错误会怎样?</li>
+        <li>单一循环的真实执行顺序?</li>
+        <li>AgentRunner.close() 如何关闭资源?什么顺序?</li>
+        <li>为什么 Prompt 提醒 ≠ 运行时硬边界?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 核心不是功能数量,而是边界一致 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>模型只负责提出下一步动作。Harness 必须拥有真正的控制权:</p>
+        <ul><li>ToolRegistry 决定当前能看到和调用哪些工具;</li><li>PermissionPolicy 在 handler 前执行硬权限判断;</li><li>HookRegistry 提供生命周期扩展,但不能放宽系统拒绝;</li><li>MemorySession、CompactionManager、DynamicPromptProvider 控制上下文;</li><li>RecoveryManager 处理 429/529/输出截断/输入过长;</li><li>SQLite Task、Protocol、Mailbox、Worktree 保存可恢复状态;</li><li>JobSupervisor、CronRuntime、TeammateRuntime、McpRuntime 持有长期资源;</li><li>AgentRunner.close() 按逆序尝试关闭全部资源。</li></ul>
+        <div class="callout bad"><span class="lab">原则</span> Prompt 可提示模型「不要写出工作区」,但真正阻止越界写入的必须是运行时权限和路径解析。MCP server 可在 description 声称只读,但权限只能来自本地可信策略。</div>
+      </div>
+    </details>
+    <details class="card"><summary>2 · P20 不新增业务模块,只接 full_harness <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>full_harness 是整合验收标记,不对应新业务模块。它表示 P1-P19 全部 Capability 已在同一组合根中连接并通过交叉验证。</p>
+        <p>四处连接:(1)profiles.ts 末尾追加 full_harness 增量;(2)prompting.ts 末尾增加可选 runtime_status 段落,Provider 用 statusProvider 每轮重读;(3)bootstrap.ts 汇总 MCP 连接与后台 pending work,只给 P20 安装状态 Provider;(4)固定入口 ch20.ts 仍只 runProfile(P20, ...)。</p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 组合根检查对象身份 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>资源</th><th>必须共享的对象</th><th>原因</th></tr><tr><td>Cron</td><td>JobSupervisor、EventInbox</td><td>调度和后台完成事件进同一 typed inbox</td></tr><tr><td>Teammate</td><td>Supervisor、Cron、Inbox、Mailbox</td><td>队友生命周期/消息/事件由同一 owner 管</td></tr><tr><td>Protocol</td><td>Teammate、Mailbox</td><td>请求状态与实际投递参与方必须一致</td></tr><tr><td>Work stealing</td><td>SQLite Task store、Worktree claim service</td><td>自动认领与手动认领用同一租约边界</td></tr><tr><td>Worktree</td><td>SQLite Task store、Git runner</td><td>Task/claim/binding 独立但引用同一 Task</td></tr><tr><td>MCP</td><td>Lead 的 live ToolRegistry</td><td>动态工具只进 Lead,下次请求可见</td></tr></table>
+        <div class="callout warn"><span class="lab">启动阶段失败</span> buildAgent() 检查对象身份。依赖虽类型正确,只要共享关系错误,也在启动阶段明确失败,不带着错误接线跑起来。</div>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 单一循环的真实执行顺序 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>所有能力都接到<b>同一个 AgentRunner</b>,执行顺序固定:</p>
+        <pre><code>memory turn lifecycle (beginTurn 选择记忆)
+-> render dynamic prompt (identity/tools/workspace/skills/memory/runtime_status)
+-> recovery manager complete (429/529/截断/输入过长恢复)
+-> prepare tool calls (JSON解析+Zod校验)
+-> PreToolUse Hook
+-> PermissionPolicy (硬边界+规则+审批)
+-> dispatch (同步或后台)
+-> PostToolUse Hook
+-> 配对回填 tool result
+-> tool result processor (大结果落盘)
+-> history processor (snip/micro/摘要)
+-> Stop Hook (最多续跑一次)</code></pre>
+        <p>没有任何能力绕过这条链路。Cron 事件、Teammate 消息、后台 job 完成都通过 EventInbox 进入 event-only turn,走同一执行路径。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · close() 逆序关闭资源 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>AgentRunner.close() 按逆序尝试关闭全部资源:MCP connections → stdio 子进程 → Teammate workers → Cron scheduler → JobSupervisor 后台 jobs → 持久化 stores。每个资源的 close 都是幂等且 try/catch 包裹的,一个资源关闭失败不影响其他资源关闭。</p>
+        <p>这保证进程退出时不留下孤儿子进程、悬挂连接或未刷盘的状态。CLI 入口在 run() 结束后统一调用 close(),把错误码映射到进程退出码。</p>
+      </div>
+    </details>
+  </section>
+  <section id="arch">
+    <h2><span class="num">🏗</span> 完整 Harness 架构总览</h2>
+    <div class="sec-desc">19 章能力分层:控制层 / 上下文层 / 数据层 / 资源层,全部接到同一 AgentRunner。</div>
+    <div class="arch">
+      <div class="arch-flow">
+<div class="layer ctrl"><b>控制层 (AgentRunner 唯一 Loop)</b></div>
+<div class="layer">  ToolRegistry · PermissionPolicy · HookRegistry · RecoveryManager</div>
+<div class="layer">  执行顺序:prepare→PreHook→权限→dispatch→PostHook→配对回填→结果处理→历史处理→Stop</div>
+<div class="layer" style="color:var(--faint)">─────────────────────────────────────</div>
+<div class="layer"><b>上下文层</b></div>
+<div class="layer">  MemorySession · CompactionManager · DynamicPromptProvider · TodoTracker</div>
+<div class="layer">  SkillRegistry(两级加载) · SubagentTool(历史隔离)</div>
+<div class="layer" style="color:var(--faint)">─────────────────────────────────────</div>
+<div class="layer data"><b>数据层 (可恢复状态)</b></div>
+<div class="layer">  SQLite Task DAG · JsonProtocolStore · FileMailboxStore · Worktree bindings</div>
+<div class="layer">  MemoryStore(.memory/manifest) · Artifacts(transcript/tool-result)</div>
+<div class="layer" style="color:var(--faint)">─────────────────────────────────────</div>
+<div class="layer res"><b>资源层 (长期持有,close() 逆序回收)</b></div>
+<div class="layer">  JobSupervisor · CronRuntime · TeammateRuntime · McpRuntime</div>
+<div class="layer">  EventInbox(typed FIFO,统一事件入口)</div>
+<div class="layer" style="color:var(--faint)">─────────────────────────────────────</div>
+<div class="layer"><b>组合根 buildAgent(P20)</b></div>
+<div class="layer">  检查对象身份 · 共享关系错误启动阶段失败 · 不接收调用方拼好的宽松策略</div>
+      </div>
+      <h4 style="margin:18px 0 8px;font-size:.85rem;color:var(--muted)">P1-P20 能力累进</h4>
+      <div class="cap-grid" id="capGrid"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">完整 Agent = 模型决策 + Harness 控制权 + 边界一致;Prompt 是软提醒,运行时才是硬边界</div>
+    <p>19 章能力接到同一组合根,用跨功能场景证明边界同时成立。模型只提动作,Harness 拥有真正的控制权:工具/权限/Hook/上下文/恢复/状态/资源,close() 逆序回收。</p>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第十九章glm生成.html"><span class="lbl">上一章</span>← 动态工具池 MCP</a>
+    <a class="next" href="index.html"><span class="lbl">返回目录</span>📚 总目录 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 20 章 / 共 20 章 · 完结</footer>
+<script>
+const caps=[
+  ["P01","loop+powershell","Agent Loop 有界循环"],
+  ["P02","+tool_registry+files","工具注册表+文件工具"],
+  ["P03","+policy","权限四态 deny 优先"],
+  ["P04","+hooks","四类 Hook 生命周期"],
+  ["P05","+todo","会话级 TODO 快照"],
+  ["P06","+subagent","子 Agent 历史隔离"],
+  ["P07","+skills","Skill 两级加载"],
+  ["P08","+artifacts+compaction","四级压缩"],
+  ["P09","+memory","文件级持久化"],
+  ["P10","+dynamic_prompt","模块化 Prompt"],
+  ["P11","+recovery","API 韧性三路径"],
+  ["P12","+task_dag_json","JSON Task DAG"],
+  ["P13","+background","后台 job EventInbox"],
+  ["P14","+cron","Cron 调度器"],
+  ["P15","+teammate+mailbox","持续 Teammate"],
+  ["P16","+protocol+plan_gate","协作协议"],
+  ["P17","+task_dag_sqlite+work_stealing","工作窃取"],
+  ["P18","+worktree","Git Worktree 隔离"],
+  ["P19","+mcp","动态工具池"],
+  ["P20","+full_harness","完整 Harness 整合"],
+];
+document.getElementById("capGrid").innerHTML=caps.map(c=>`<div class="cap"><div class="ch">${c[0]} ${c[1]}</div><div class="cn">${c[2]}</div></div>`).join("");
+
+const questions=[
+  {q:"完整 Agent 的核心是功能数量还是边界一致?",o:["功能数量","边界一致:模型只提动作,Harness必须拥有真正控制权(工具/权限/Hook/上下文/恢复/状态/资源)","功能越多越好","边界不重要"],a:1,e:"模型只负责提出下一步动作。Harness必须拥有真正控制权:ToolRegistry决定可见工具、PermissionPolicy硬权限、HookRegistry生命周期、MemorySession/CompactionManager/DynamicPromptProvider控制上下文、RecoveryManager处理故障、SQLite保存状态、Runtime持有资源、close()逆序回收。"},
+  {q:"P20 新增了业务模块吗?full_harness 是什么?",o:["新增多个模块","不新增业务模块;full_harness是整合验收标记,表示P1-P19全部Capability已在同一组合根连接并通过交叉验证","新增一个框架","新增MCP"],a:1,e:"full_harness不对应新业务模块。四处连接:profiles.ts追加增量、prompting.ts加runtime_status段落、bootstrap.ts汇总MCP和pending work安装状态Provider、ch20.ts仍只runProfile(P20)。"},
+  {q:"组合根如何检查对象身份?共享关系错误会怎样?",o:["不检查","buildAgent()检查对象身份;依赖虽类型正确,只要共享关系错误也在启动阶段明确失败","运行时失败","忽略"],a:1,e:"如Cron必须共享JobSupervisor和EventInbox(调度和后台完成事件进同一inbox);Teammate共享Supervisor/Cron/Inbox/Mailbox;Protocol共享Teammate和Mailbox。共享关系错误启动阶段就失败,不带着错误接线跑。"},
+  {q:"单一循环的真实执行顺序,Stop Hook 在哪?",o:["最前","memory turn→render prompt→recovery complete→prepare→PreHook→权限→dispatch→PostHook→配对回填→结果处理→历史处理→Stop Hook(最后,最多续跑一次)","中间","随机"],a:1,e:"所有能力接到同一个AgentRunner,执行顺序固定。没有任何能力绕过这条链路。Cron事件/Teammate消息/后台job完成都通过EventInbox进入event-only turn走同一执行路径。"},
+  {q:"AgentRunner.close() 如何关闭资源?什么顺序?",o:["正序","逆序:MCP connections→stdio子进程→Teammate workers→Cron scheduler→JobSupervisor后台jobs→持久化stores;每个close幂等且try/catch包裹","随机","只关一个"],a:1,e:"逆序关闭,每个资源close幂等且try/catch包裹,一个失败不影响其他。保证进程退出不留孤儿子进程/悬挂连接/未刷盘状态。CLI入口run()结束后统一调close(),错误码映射进程退出码。"},
+  {q:"为什么 Prompt 提醒 ≠ 运行时硬边界?",o:["一样","Prompt是软提醒(模型可能忽略);运行时权限和路径解析才是硬边界(无法绕过)","Prompt更强","运行时不重要"],a:1,e:"Prompt可提示模型「不要写出工作区」,但真正阻止越界写入的是运行时权限和路径解析。MCP server可在description声称只读,但权限只能来自本地可信策略。模型只能提动作,是否执行由Harness决定。"},
+  {q:"Cron 事件、Teammate 消息、后台 job 完成如何进入 Loop?",o:["各自独立路径","都通过EventInbox进入event-only turn,走同一执行路径(PreHook→权限→dispatch→PostHook→配对回填)","直接写canonical","通过新turn"],a:1,e:"EventInbox是typed FIFO统一事件入口。Cron事件/Teammate消息/后台job完成都产生typed RuntimeEvent进EventInbox,AgentRunner.runEvents()空闲时执行event-only turn,走同一执行路径,工具仍过Hook和权限。"},
+  {q:"P20 的 runtime_status 段落由谁提供?",o:["硬编码","statusProvider每轮重新读取运行态状态(汇总MCP连接与后台pending work),只给P20安装","模型生成","固定字符串"],a:1,e:"prompting.ts渲染器末尾增加可选runtime_status段落,Provider用statusProvider每轮重新读取。bootstrap.ts汇总MCP连接与后台pending work,只给P20安装该状态Provider。这让模型每轮看到当前运行态(哪些MCP连着、哪些后台job在跑)。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!完整Harness你已经吃透,全系列完结":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看边界一致和执行顺序":"📚 重看核心概念和架构总览";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 16 章 · 从单兵作战到自组织团队</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  .pr-sim{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .pr-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .pr-flow{display:flex;flex-direction:column;gap:6px}
+  .pr-step{border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface2);font-size:.82rem;display:flex;align-items:center;gap:10px;opacity:.6;transition:.2s}
+  .pr-step.on{opacity:1;border-color:var(--accent)}
+  .pr-step .ic{font-size:.95rem}.pr-step .st{flex:1}.pr-step .st b{color:var(--text)}.pr-step .st .sub{color:var(--muted);font-size:.74rem;display:block}
+  .pr-step .tag{font-size:.68rem;padding:1px 6px;border-radius:4px;background:var(--code-bg);color:var(--muted)}
+  .pr-state{margin-top:12px;padding:10px;border-radius:8px;background:var(--code-bg);font-size:.8rem;font-family:monospace}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 16 章</span>
+  <span class="title">从单兵作战到自组织团队 <span class="muted">· Agent架构实操十六</span></span>
+  <nav><a href="#concepts">概念</a><a href="#sim">协议演示</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>从「单兵作战」到「自组织团队」</h1>
+    <div class="sub">普通 task/message/result 只表达内容,不表达「这条回复正在解决哪个请求」。关机、计划审批这类场景靠自由文本猜上下文不够。本章:协议请求先登记、消息携带稳定 ID、响应严格匹配、状态只迁移一次。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 14 分钟</span>
+      <span class="pill">📋 ProtocolRequest</span>
+      <span class="pill">🚪 plan_gate 门控</span>
+      <span class="pill">+protocol+plan_gate</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>消息送达等于协议完成吗?普通 Mailbox 不知道哪些事实?</li>
+        <li>第一条硬规则:先登记还是先发送?为什么顺序不能反?</li>
+        <li>ProtocolRequest 有哪些不变量?响应窗口默认多久?</li>
+        <li>plan_gate 如何门控?pending/rejected 时写入工具会怎样?</li>
+        <li>shutdown 的正确顺序是什么?能直接取消正在写文件的队友吗?</li>
+        <li>为什么不把协议塞进普通 content 字符串?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 消息送达 ≠ 协议完成 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>普通 Mailbox 已解决持久投递(每条消息有稳定 UUID,经 ready→processing→done/quarantine)。但它不知道:</p>
+        <ul><li>shutdown_response 是否对应真实存在的 shutdown 请求;</li><li>响应双方是否正好是原请求的 target 和 sender;</li><li>请求是否仍 pending、是否已过期;</li><li>同一响应因 Mailbox ack 故障重试时是否已消费过;</li><li>不同 transport message 携带相同 request ID 时是否重复响应。</li></ul>
+        <p>因此 P16 没把协议塞进普通 content 字符串,也没让模型解析自由文本 JSON,而是增加确定性运行时。</p>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 第一条硬规则:先登记,再发送 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>const request = await protocol.requestShutdown("alice");
+// request 已先写入 JsonProtocolStore,再由 TeammateRuntime 投递 typed Mailbox</code></pre>
+        <div class="callout bad"><span class="lab">顺序不能反</span> 先发送,接收方可能在请求登记前就回复,状态机找不到 request ID。发送失败也不假装请求没发生:抛 ProtocolDeliveryError,保留已持久化的 pending 请求供诊断恢复,不自动创建第二个请求掩盖失败,不在后台无限重试。</div>
+      </div>
+    </details>
+    <details class="card"><summary>3 · ProtocolRequest 不变量 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>使用规范 UUID、明确参与方、aware UTC、封闭状态(pending/approved/rejected)。</p>
+        <ul><li>sender 和 target 不能相同,名字必须是安全小写 Agent slug;</li><li>ID 必须是规范 UUID,不接受六位随机短 ID/大小写变体/别名;</li><li>pending 请求不能带 resolution;approved/rejected 必须带匹配 resolution;</li><li>resolution 时间不能早于创建,不能落在或超过过期时刻;</li><li>默认响应窗口 5 分钟,区间 [created_at_utc, expires_at_utc)。</li></ul>
+        <p>JsonProtocolStore 把全部请求保存到 .agent_tutorial/protocol/state.json(带 version 单一快照)。进程内 mutex 串行化 + 跨进程 proper-lockfile 锁,临时文件+fsync+原子 rename,持久化失败旧字节旧状态不变。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · plan_gate 门控 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>Bob 要重构认证模块,先 submit_plan 提交计划,Lead 用 review_plan 批准或驳回。<b>只要计划仍是 pending 或 rejected,写入和执行类工具就必须在 handler 之前被拒绝</b>,不能只靠 Prompt 提醒模型「先等批准」。</p>
+        <div class="callout warn"><span class="lab">硬门控</span> 这是权限层的硬拒绝,不是 Prompt 软提醒。pending/rejected 状态下 write_file/edit_file/shell 等工具的 effect 在 handler 执行前就被 plan_gate 拦截。只有 approved 才放行。</div>
+      </div>
+    </details>
+    <details class="card"><summary>5 · shutdown 正确顺序 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>Lead 想让 Alice 停下来,但不能在她写文件时直接取消。正确顺序:</p>
+        <ol><li>先让当前消息完成(不打断正在处理的 Mailbox 消息);</li><li>再处理结构化 shutdown 请求(协议消息先走确定性 router);</li><li>发回响应;</li><li>然后结束 worker;</li><li>Runner 资源仍由组合根统一关闭。</li></ol>
+        <p>协议消息先走确定性 router,普通消息才进入模型。这保证 shutdown/plan 这类控制信号不被普通消息队列阻塞。</p>
+      </div>
+    </details>
+    <details class="card"><summary>6 · typed Mailbox:不降级成 content JSON <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>P15 的 MailboxMessageKind 只有 task/message/result。P16 新增独立 ProtocolMessageKind:shutdown_request、shutdown_response、plan_approval_request、plan_approval_response。ProtocolMailboxMessage 显式包含 request_id 和 approved。</p>
+        <p>协议没创建第二套消息目录、第二个 EventInbox 或第二个 Agent Loop。它复用 P15 的 FileMailboxStore,只是消息 kind 扩展。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:协议生命周期</h2>
+    <div class="sec-desc">选一个场景(shutdown 或 plan approval),看请求如何「先登记再发送」,响应如何严格匹配 request_id,状态只迁移一次。</div>
+    <div class="pr-sim">
+      <div class="pr-ctrl">
+        <button class="btn primary" id="shutdown">🚪 shutdown 场景</button>
+        <button class="btn" id="plan">📋 plan approval 场景</button>
+        <button class="btn" id="reset">↺ 重置</button>
+      </div>
+      <div class="pr-flow" id="flow"></div>
+      <div class="pr-state" id="state"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">请求先登记→消息携带稳定ID→响应严格匹配→状态只迁移一次:确定性协议,不靠自由文本猜上下文</div>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第十五章glm生成.html"><span class="lbl">上一章</span>← Inbox 异步通信</a>
+    <a class="next" href="第十七章glm生成.html"><span class="lbl">下一章</span>自驱轮询 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 16 章 / 共 20 章</footer>
+<script>
+const flow=document.getElementById("flow"),stateEl=document.getElementById("state");
+function step(ic,st,sub,tag){return `<div class="pr-step on"><span class="ic">${ic}</span><div class="st"><b>${st}</b><span class="sub">${sub}</span></div><span class="tag">${tag}</span></div>`;}
+function shutdownFlow(){
+  flow.innerHTML="";
+  const s=[
+    ["1","Lead 调 request_shutdown(alice)","先写入 JsonProtocolStore 登记pending请求","登记"],
+    ["2","TeammateRuntime 投递 typed shutdown_request 到 alice Mailbox","请求已持久化后才发送","发送"],
+    ["3","alice 当前消息完成(不打断写文件)","先让正在处理的消息完成","等待"],
+    ["4","协议消息走确定性 router,alice 处理 shutdown_request","协议优先于普通消息","处理"],
+    ["5","alice 发回 shutdown_response(request_id 严格匹配)","响应携带原 request_id","响应"],
+    ["6","状态 pending→approved(只迁移一次),worker 结束","Lead 收到响应,状态迁移","完成"],
+  ];
+  let i=0;const iv=setInterval(()=>{if(i>=s.length){clearInterval(iv);return;}flow.innerHTML+=step(s[i][0],s[i][1],s[i][2],s[i][3]);i++;},500);
+  stateEl.innerHTML="ProtocolRequest: kind=shutdown, status: <b style='color:var(--ok)'>approved</b>, resolution 已匹配";
+}
+function planFlow(){
+  flow.innerHTML="";
+  const s=[
+    ["1","Bob 调 submit_plan(plan)","先写入 JsonProtocolStore 登记pending请求","登记"],
+    ["2","投递 typed plan_approval_request 到 Lead Mailbox","请求已持久化后才发送","发送"],
+    ["3","Lead 调 review_plan(request_id, approve=true)","Lead 审批,状态 pending→approved","审批"],
+    ["4","投递 plan_approval_response(request_id, approved=true)","响应严格匹配 request_id","响应"],
+    ["5","plan_gate: approved → write_file/edit_file 放行","门控放行执行类工具","门控"],
+    ["6","Bob 开始执行重构(写文件)","approved 后才允许写","执行"],
+  ];
+  let i=0;const iv=setInterval(()=>{if(i>=s.length){clearInterval(iv);return;}flow.innerHTML+=step(s[i][0],s[i][1],s[i][2],s[i][3]);i++;},500);
+  stateEl.innerHTML="ProtocolRequest: kind=plan_approval, status: <b style='color:var(--ok)'>approved</b>, write_file 已放行";
+}
+document.getElementById("shutdown").onclick=shutdownFlow;
+document.getElementById("plan").onclick=planFlow;
+document.getElementById("reset").onclick=()=>{flow.innerHTML="";stateEl.innerHTML="选一个场景开始";};
+stateEl.innerHTML="选一个场景开始";
+
+const questions=[
+  {q:"消息送达等于协议完成吗?普通 Mailbox 不知道哪些事实?",o:["等于","不等于:普通Mailbox不知道shutdown_response是否对应真实请求、双方是否匹配、是否仍pending/过期、重试是否已消费过、相同request ID是否重复响应","等于,有UUID就够了","取决于实现"],a:1,e:"普通Mailbox只解决持久投递(稳定UUID+状态机),但不知道协议语义。P16增加确定性运行时:请求先登记、消息携带稳定ID、响应严格匹配、状态只迁移一次。"},
+  {q:"第一条硬规则:先登记还是先发送?",o:["先发送再登记","先登记到ProtocolStore再通过Mailbox发送;顺序不能反,否则接收方可能在登记前就回复,状态机找不到request ID","同时","无所谓"],a:1,e:"request先写入JsonProtocolStore再投递。发送失败不假装没发生:抛ProtocolDeliveryError,保留已持久化pending请求供诊断恢复,不自动创建第二个请求掩盖失败,不在后台无限重试。"},
+  {q:"ProtocolRequest 的默认响应窗口是多久?区间?",o:["1分钟, [created, created+1min]","5分钟, [created_at_utc, expires_at_utc)","10分钟, (created, expires]","无限制"],a:1,e:"默认5分钟,区间[created_at_utc, expires_at_utc)。pending请求不能带resolution;approved/rejected必须带匹配resolution;resolution时间不能早于创建也不能落在或超过过期时刻。"},
+  {q:"plan_gate 如何门控?pending/rejected 时 write_file 会怎样?",o:["靠Prompt提醒模型等批准","硬门控:pending/rejected时写入和执行类工具在handler之前被拒绝,不是Prompt软提醒","允许写入","自动批准"],a:1,e:"只要计划仍pending或rejected,write_file/edit_file/shell等工具的effect在handler执行前就被plan_gate拦截。只有approved才放行。这是权限层硬拒绝,不能只靠Prompt提醒。"},
+  {q:"shutdown 的正确顺序?能直接取消正在写文件的队友吗?",o:["直接取消","不能:先让当前消息完成→处理结构化shutdown请求→发回响应→结束worker→Runner资源由组合根统一关闭","立即停止worker","发送cancel信号"],a:1,e:"不能在她写文件时直接取消。正确顺序:先让当前消息完成(不打断正在处理的Mailbox消息)→协议消息走确定性router→发回响应→结束worker→Runner资源由组合根统一关闭。"},
+  {q:"为什么不把协议塞进普通 content 字符串?",o:["字符串太长","模型解析自由文本JSON不可靠,无法确定性验证请求ID/参与方/状态/过期/重复响应","性能差","OpenAI要求"],a:1,e:"P16新增独立ProtocolMessageKind(shutdown_request/response, plan_approval_request/response),ProtocolMailboxMessage显式包含request_id和approved。不创建第二套目录/EventInbox/Loop,复用P15的FileMailboxStore只是kind扩展。"},
+  {q:"ProtocolRequest 的 ID 要求?",o:["六位随机短ID","规范UUID,不接受六位随机短ID/大小写变体/别名","任意字符串","自增整数"],a:1,e:"ID必须是规范UUID。sender和target不能相同,名字必须是安全小写Agent slug。这些不变量保证请求身份稳定可验证,不会因ID变体导致状态机找不到匹配。"},
+  {q:"协议消息和普通消息的路由顺序?",o:["普通消息优先","协议消息先走确定性router,普通消息才进入模型;保证shutdown/plan控制信号不被普通消息队列阻塞","同时处理","随机"],a:1,e:"TeammateRuntime中协议消息先走确定性router。这保证shutdown/plan这类控制信号不被普通消息队列阻塞。响应严格匹配request_id,状态只迁移一次。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!协作协议你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看先登记再发送和plan_gate":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

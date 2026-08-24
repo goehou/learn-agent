@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 6 章 · 从单兵死磕到分身协作</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  /* subagent sim */
+  .sub{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .sub-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .ctx-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .ctx-box{border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface2);min-height:160px}
+  .ctx-box h4{margin:0 0 8px;font-size:.82rem;display:flex;align-items:center;gap:6px}.ctx-box h4 .badge-sm{font-size:.68rem;padding:1px 6px;border-radius:4px;background:var(--code-bg);color:var(--muted)}
+  .ctx-box.parent{border-color:var(--accent)}.ctx-box.child{border-color:var(--accent2)}
+  .msg{padding:5px 8px;border-radius:6px;margin:4px 0;font-size:.78rem;font-family:monospace;background:var(--code-bg);border:1px solid var(--border)}
+  .msg .rl{color:var(--muted);font-size:.7rem}.msg.user{border-left:3px solid var(--accent)}.msg.assistant{border-left:3px solid var(--accent2)}.msg.tool{border-left:3px solid var(--teal)}
+  .msg.faded{opacity:.3;border-style:dashed}
+  .tools-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+  .tool-chip{font-size:.7rem;padding:2px 6px;border-radius:4px;background:var(--surface);border:1px solid var(--border);font-family:monospace}.tool-chip.blocked{border-color:var(--bad);color:var(--bad);text-decoration:line-through}
+  .stat-line{margin-top:12px;padding:10px;border-radius:8px;background:var(--code-bg);font-size:.82rem;font-family:monospace}
+  .stat-line b{color:var(--accent)}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+  @media(max-width:640px){.ctx-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 6 章</span>
+  <span class="title">从单兵死磕到分身协作 <span class="muted">· Agent架构实操六</span></span>
+  <nav><a href="#guide">导读</a><a href="#glossary">术语</a><a href="#concepts">概念</a><a href="#sim">隔离演示</a><a href="#run">运行</a><a href="#recap">小结</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>从「单兵死磕」到「分身协作」</h1>
+    <div class="sub">追深调用链 bug 时,几十轮工具结果塞满历史。更合适:把自包含子任务交给一次性 Subagent,从全新历史开始探索,父 Agent 只接收一句有证据的结论。本章新增 <code>task</code> 工具。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 12 分钟</span>
+      <span class="pill">🧬 历史隔离</span>
+      <span class="pill">🚫 禁止递归委派</span>
+      <span class="pill">+subagent capability</span>
+    </div>
+  </div>
+  <section id="guide">
+    <h2><span class="num">🎯</span> 本章导读</h2>
+    <div class="sec-desc">读完这一章,你应该能用一句话回答下面每个问题。</div>
+    <div class="callout"><span class="lab">读完能做到</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>说清「委派」里隔离的到底是什么:只有消息历史和工具注册表,其他全部共享。</li>
+        <li>写一个自包含的 task 工具:description 让子 Agent 不靠父 history 也能独立完成任务。</li>
+        <li>说出父 history 在委派后只多哪三条消息,以及为什么子 Agent 的推理过程无法审计。</li>
+        <li>解释为什么必须禁止递归委派(三层防线),以及子 Agent 跑满 30 轮返回什么。</li>
+        <li>跑通第 6 章:让父 Agent 委派一个子 Agent 干一件事,再自己给结论。</li>
+      </ol>
+    </div>
+
+    <details class="card">
+      <summary>你需要先具备什么 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>需要</th><th>说明</th></tr><tr><td>读完第 1—5 章</td><td>会看 AgentRunner、Hook、权限、tool 注册即可</td></tr><tr><td>多 Agent 概念</td><td>不需要。本章就是第一次引入「子 Agent」</td></tr></table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>建议的阅读路线 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>本章导读(你在这)
+  ↓
+① 先看一眼一次真实的委派    ← 子 Agent 干活的完整日志
+  ↓
+② 这章解决什么问题          ← 上下文隔离,不是沙箱
+  ↓
+③ 严格的 task 输入          ← 自包含 description
+  ↓
+④ SubagentTool = 执行边界    ← 复用同一个 AgentRunner
+  ↓
+⑤ 历史隔离 + 边界共享        ← 三、四
+  ↓
+⑥ 禁止递归委派              ← 三层防线
+  ↓
+⑦ 30 轮上限 + 脱敏错误       ← 六
+  ↓
+⑧ 组合根 + 离线证明          ← 七、八
+  ↓
+⑨ 运行 + 实验 + 差异 + 小结   ← 九~十一</code></pre>
+        <div class="callout"><span class="lab">最该记住的一句</span> 委派不创造新路径:子 Agent 该弹的审批照样弹,该拦的越界照样拦。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="glossary">
+    <h2><span class="num">📇</span> 术语速查</h2>
+    <div class="sec-desc">本章第一次出现的词。先扫一眼,正文里遇到不认识的词回来查即可。<b>不用背</b>。</div>
+    <table>
+      <tr><th style="width:30%">术语</th><th>一句话解释</th></tr>
+      <tr><td><b>委派(task)</b></td><td>把一段自包含探索交给独立子 Agent,只拿回一句结论</td></tr>
+      <tr><td><b>SubagentTool</b></td><td>执行边界的实现:复用同一个 AgentRunner 跑一次内部 run()</td></tr>
+      <tr><td><b>自包含 description</b></td><td>子 Agent 只能看到 description,看不到父 history,所以描述必须完整</td></tr>
+      <tr><td><b>历史隔离</b></td><td>父与子各有一份独立 #history,互不可见</td></tr>
+      <tr><td><b>边界共享</b></td><td>Hook、权限、workspace、identity、进程全部共享一个实例</td></tr>
+      <tr><td><b>递归委派</b></td><td>子 Agent 自己再调 task。三层防线禁止</td></tr>
+      <tr><td><b>evidence-based 结论</b></td><td>因为子推理不可审计,所以要求子 Agent 给出有文件证据的结论</td></tr>
+      <tr><td><code>subagent_turn_limit</code></td><td>子 Agent 跑满 30 轮返回的结构化错误码</td></tr>
+      <tr><td><code>subagent_configuration_error</code></td><td>子工具集非法(例如包含 task)时的错误码</td></tr>
+      <tr><td><b>toolRoundObserver</b></td><td>父挂的「计划陈旧提醒」观察器;子 Agent 刻意没挂</td></tr>
+    </table>
+  </section>
+
+  <section id="wire">
+    <h2><span class="num">📡</span> 先看一眼一次真实的委派</h2>
+    <div class="sec-desc">父子日志交错 + 子 Agent 越界写入被拦。</div>
+    <details class="card" open>
+      <summary>父子日志交错 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run ch06 -- --prompt "调用 task 独立检查本项目使用的测试框架，只返回有文件证据的结论"
+# stderr 上父子交错:
+#   [Hook] UserPromptSubmit     (父)
+#   [Hook] PreToolUse: task     (父)
+#   [Hook] UserPromptSubmit     ← 子 Agent 那次 run() 也打日志!
+#   [Hook] PreToolUse: read_file (子)
+#   ...
+# Hook 是共享实例,所以子 Agent 的 run() 也会打 UserPromptSubmit 和 Stop</code></pre>
+        <div class="callout warn"><span class="lab">观测局限</span> 共享 HookRegistry 的代价是日志里分不清父子。想区分的话,Hook 回调可以自己维护嵌套深度计数——那是读者的扩展,本章不做。</div>
+      </div>
+    </details>
+    <details class="card">
+      <summary>那如果子 Agent 想越界写呢 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>子 Agent 的 write_file 照样走第 3 章权限:工作区内弹审批、工作区外被硬边界 deny。`task` 自己是 allow(读取类),但子 Agent 的写入照样弹到你面前——<b>审批框上不标注「这是子 Agent 发起的」</b>,因为父子共享 identity。</p>
+      </div>
+    </details>
+  </section>
+
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 这章解决什么:上下文隔离 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>第 5 章 todo_write 解决「单会话如何保存计划」,但不减少探索过程本身的上下文。第 6 章解决「如何隔离一段独立探索」:父调用 task,运行时创建新 AgentRunner:</p>
+        <pre><code>父 Agent
+  assistant: task(description=...)
+      ↓
+一次性 Subagent
+  system: 专注完成委派任务,不再委派
+  user: description
+  history: 全新
+  tools: shell/read_file/write_file/edit_file/glob/todo_write
+      ↓
+父 Agent
+  tool: 子 Agent 的 finalText</code></pre>
+        <div class="callout warn"><span class="lab">隔离边界</span> 「隔离」只指消息历史隔离。子看不到父历史,父看不到子中间轨迹;但子写出的文件会保留,父子仍同进程、同 Hook、同权限、同 workspace、同 identity。Subagent 不是操作系统沙箱。</div>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 严格的 task 输入:自包含 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>description 必须 trim 后非空,.strict() 拒绝额外字段。为什么强调「自包含」?因为子 Agent 不继承父 history。</p>
+        <div class="callout bad"><span class="lab">坏描述</span> <code>"继续处理刚才那个问题"</code> — 子 Agent 看不到「刚才」,信息不足。</div>
+        <div class="callout ok"><span class="lab">好描述</span> <code>"检查 package.json 和测试目录,确认项目测试框架;只返回能由文件内容支持的结论。"</code> — 对象、目标、证据要求都明确。</div>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 父 history 为什么保持干净 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>子 Agent 可多轮 read_file/glob/shell,但 SubagentTool 只返回 <code>result.finalText</code>。父 history 只保存:</p>
+        <pre><code>user:      父任务
+assistant: tool_calls=[task(parent-task)]
+tool:      子 Agent 的 finalText, toolCallId=parent-task
+assistant: 父 Agent 的最终回答</code></pre>
+        <p>子内部历史不 append 到父。父 Loop 仍按 tool_call_id 配对写 tool message,OpenAI 工具配对契约无例外。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 历史隔离,运行边界共享 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>子 Agent 用新 AgentRunner,但不是新权限系统。构造时直接传入父会话组合根创建的同一实例:hooks、permissionPolicy、workspace、identity。</p>
+        <p>子工具调用顺序仍是:PreToolUse → PermissionPolicy → handler → PostToolUse。子尝试向 workspace 外写入,第 3 章硬边界先 deny,审批器不会被调用。合法的子 write_file 仍按原策略请求审批并写入同一 workspace,父之后可继续读。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 为什么禁止递归委派(两层防护) <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>P06 父工具有 7 个(含 task),子工具工厂只创建前 6 个(不含 task)。两层防护:</p>
+        <ol><li><b>工厂不注册</b>:正常组装路径,子工具集不含 task。</li><li><b>运行时拒绝</b>:若 tools.names.includes("task") 返回 subagent_configuration_error,保护工厂被错误改写。</li></ol>
+        <p>若子模型仍生成 task(...),Registry 返回 <code>unknown_tool: Unknown tool: task</code>,不会创建孙 Agent。</p>
+      </div>
+    </details>
+    <details class="card"><summary>6 · 30 轮上限与脱敏错误 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>DEFAULT_SUBAGENT_MAX_TURNS=30,构造时不允许高于 30。子连续 30 轮只返回工具调用时,公共 Loop 抛 AgentLimitError,task handler 转成稳定错误:</p>
+        <pre><code>Error [subagent_turn_limit]: Subagent exceeded max_turns=30 without a final answer</code></pre>
+        <p>父不会收到第 30 轮最后一个工具输出,不能把它误认为结论。其他异常也脱敏:<code>subagent_execution_error</code>,不泄漏 API Key/路径/适配器细节。</p>
+      </div>
+    </details>
+    <details class="card"><summary>7 · effect: external 的含义 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>task 的 effect 是 "external"(发起一段独立执行,而非直接读写文件)。第 3 章审批仍由工具名和硬边界决定,不会因 task 标 external 就把所有子工具误判成磁盘写入。子工具是否允许写盘,仍由各自工具名和权限边界决定。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:父-子上下文隔离</h2>
+    <div class="sec-desc">点「启动 task」看子 Agent 在全新历史里探索,父只收到 finalText。注意子工具集没有 task(禁止递归),且子写文件副作用留在同一 workspace。</div>
+    <div class="sub">
+      <div class="sub-ctrl">
+        <button class="btn primary" id="runTask">▶ 启动 task(追踪 login 调用链)</button>
+        <button class="btn" id="reset">↺ 重置</button>
+        <span style="font-size:.8rem;color:var(--muted)">父工具:7个 · 子工具:6个(无 task)</span>
+      </div>
+      <div class="ctx-row">
+        <div class="ctx-box parent">
+          <h4>🧑 父 Agent 历史 <span class="badge-sm">只收 finalText</span></h4>
+          <div id="parentHist"></div>
+        </div>
+        <div class="ctx-box child">
+          <h4>🧒 子 Agent 历史 <span class="badge-sm">全新,父看不到中间</span></h4>
+          <div id="childHist"></div>
+        </div>
+      </div>
+      <div class="tools-row" id="childTools"></div>
+      <div class="stat-line" id="stat"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">task = 一个受控的上下文切分点:委派独立工作出去,保留最终结论与所有既有运行边界</div>
+    <p>子 Agent 可以有很长的探索轨迹,但父上下文只留下被委派的动作和可用于后续推理的结论。历史隔离 ≠ 权限隔离,运行边界共享。</p>
+  </section>
+  <section id="run">
+    <h2><span class="num">🚀</span> 运行第 6 章</h2>
+    <div class="sec-desc">前置条件和前几章一样。下面几步,每步都给出预期结果。</div>
+
+    <details class="card" open>
+      <summary>第 0–1 步 · 环境与离线测试 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>Set-Location 'F:\笔记\Agent实操\code'
+npm ci
+npm run test:ch06</code></pre>
+        <pre><code> Test Files  16 passed (16)
+      Tests  118 passed (118)</code></pre>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 2–4 步 · 观察一次委派、观察审批、统一入口 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run ch06 -- --prompt "调用 task 独立检查本项目使用的测试框架，只返回有文件证据的结论"
+# 父子日志交错;Hook 共享实例,子 Agent 的 run() 也打 UserPromptSubmit/Stop
+
+npm run ch06 -- --prompt "调用 task 让子 Agent 把一句话写入 sub-demo.txt"
+# task 自己 allow;子 Agent 的写入照样弹审批框
+
+npm run agent-tutorial -- run --chapter 6 --prompt "调用 task 总结 chapters/ch06/src/core 目录职责，再由父 Agent 给出结论"</code></pre>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>常见报错排查表 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:44%">现象</th><th>原因 / 处理</th></tr>
+          <tr><td><code>Error [subagent_turn_limit]</code></td><td>子 Agent 跑满 30 轮还没给最终文本。把委派任务拆小。不要调高上限——构造时会拒绝 &gt;30</td></tr>
+          <tr><td>子 Agent 越界写入没弹审批框</td><td>预期行为。硬边界在规则之前,越界直接 deny,压根到不了审批</td></tr>
+          <tr><td>子 Agent 调 task 报 <code>subagent_configuration_error</code></td><td>运行时防递归第三层,正常。子工具集本就不含 task</td></tr>
+          <tr><td>启动报 maxTurns must be at most 30</td><td>构造期校验,配置错误在组合根就炸</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="verify">
+    <h2><span class="num">🧪</span> 验证与实验</h2>
+    <div class="sec-desc"><code>npm run test:ch06</code> 执行 16 个测试文件、118 个测试。四个建议动手的小实验:</div>
+    <details class="card">
+      <summary>四个建议动手做的小实验 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:36%">实验</th><th>预期</th><th>学到什么</th></tr>
+          <tr><td><b>一·maxTurns 调到 31</b><br><small>在 new SubagentTool 里加 maxTurns: 31</small></td><td>启动就抛 <code>maxTurns must be at most 30</code>,模型一次没被调用</td><td>上限是构造期校验,配置错误应在组合根就炸</td></tr>
+          <tr><td><b>二·让子工具集包含 task</b></td><td>返回 <code>subagent_configuration_error</code>,模型请求只有父那一次</td><td>运行时防递归第三道防线,子 Agent 压根没被创建</td></tr>
+          <tr><td><b>三·验证子 Agent 看不到父 history</b></td><td>子 Agent 只看到 description 那一句,必须自己再读文件</td><td>隔离是真的;description 必须自包含</td></tr>
+          <tr><td><b>四·观察子 Agent 的 todo_write 有没有提醒</b></td><td>没有。子 Agent 没挂 toolRoundObserver</td><td>刻意的不对称:有工具但没机制</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">📝</span> 本章小结</h2>
+    <div class="sec-desc">三句话版本、一定要记住的八条、以及本章<b>还没做什么</b>。</div>
+
+    <div class="callout"><span class="lab">三句话版本</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>task 把一段自包含探索搬到一个全新历史里跑,父 Agent 只拿回一句结论。</li>
+        <li>隔离的只有消息历史和工具注册表;Hook、权限、workspace、identity、进程全部共享。</li>
+        <li>委派不创造新路径:子 Agent 该弹的审批照样弹,该拦的越界照样拦。</li>
+      </ol>
+    </div>
+
+    <details class="card" open>
+      <summary>一定要记住的八条 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:6%">#</th><th>结论</th><th style="width:24%">出现在哪一节</th></tr>
+          <tr><td>1</td><td>「隔离」= 上下文隔离,不是沙箱、不是提权、不是降权</td><td>这章解决什么问题</td></tr>
+          <tr><td>2</td><td>子 Agent 看不到父 history,所以 description 必须自包含</td><td>一</td></tr>
+          <tr><td>3</td><td>SubagentTool 不是第二套 Loop,它复用同一个 AgentRunner</td><td>二</td></tr>
+          <tr><td>4</td><td>父 history 只多三条:assistant(task)、tool(结论)、assistant(最终回答)</td><td>三</td></tr>
+          <tr><td>5</td><td>代价是子 Agent 的推理过程无法审计——所以要求 evidence-based 结论</td><td>三</td></tr>
+          <tr><td>6</td><td>禁止递归防三层:提示、工厂、运行时;第三层保证「模型零调用」</td><td>五</td></tr>
+          <tr><td>7</td><td>跑满轮数返回结构化错误,绝不把最后一个工具输出冒充结论</td><td>六</td></tr>
+          <tr><td>8</td><td>子 Agent 有 todo_write 但没有 toolRoundObserver——刻意的不对称</td><td>七</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>本章代码边界 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>P06 只加了「一层同步委派」,没加并行、没加持久化、没加沙箱。并行(第 13 章后台任务)、多 Agent 认领(第 17、18 章)、Inbox 异步协作(第 15 章)都在后面。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>检查你是否真的读懂了(不看文章回答) <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li>子 Agent 在 workspace 里写的文件,task 返回后还在吗?为什么?</li>
+          <li>父 Agent 调用一次 task,父 history 里多了几条消息?分别是什么?</li>
+          <li>子 Agent 的 write_file 会弹审批框吗?审批框上能看出这是子 Agent 吗?</li>
+          <li>给子 Agent 配「永远批准」的审批器,它能写出 workspace 吗?</li>
+          <li>子模型自己生成了 task(...) 调用,它会收到什么?</li>
+          <li>子 Agent 跑满 30 轮,父 Agent 收到的是第 30 轮的工具输出,还是别的东西?</li>
+          <li>子 Agent 的工具列表里有 todo_write。它会收到「计划陈旧」提醒吗?</li>
+        </ol>
+      </div>
+    </details>
+  </section>
+
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第五章glm生成.html"><span class="lbl">上一章</span>← 失忆症与 TODO</a>
+    <a class="next" href="第七章glm生成.html"><span class="lbl">下一章</span>Skill 技能系统 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 6 章 / 共 20 章</footer>
+<script>
+const parentTools=["shell","read_file","write_file","edit_file","glob","todo_write","task"];
+const childTools=["shell","read_file","write_file","edit_file","glob","todo_write"];
+const parentHist=document.getElementById("parentHist"),childHist=document.getElementById("childHist"),childToolsEl=document.getElementById("childTools"),statEl=document.getElementById("stat");
+function msg(role,label,content,faded){return `<div class="msg ${role} ${faded?'faded':''}"><span class="rl">${label}</span> ${content}</div>`;}
+childToolsEl.innerHTML=childTools.map(t=>`<span class="tool-chip">${t}</span>`).join("")+`<span class="tool-chip blocked">task ✗</span>`;
+statEl.innerHTML="状态:未启动。点「启动 task」开始。";
+document.getElementById("runTask").onclick=()=>{
+  parentHist.innerHTML=msg("user","user:","追踪 login() 调用链并给出文件证据");
+  parentHist.innerHTML+=msg("assistant","assistant:","tool_calls=[task(parent-task)]");
+  childHist.innerHTML=msg("user","system:","专注完成委派任务,不再委派");
+  childHist.innerHTML+=msg("user","user:","追踪 login() 调用链并给出文件证据");
+  statEl.innerHTML="⏳ 子 Agent 启动,全新 history,30 轮上限...";
+  setTimeout(()=>{
+    childHist.innerHTML+=msg("assistant","assistant:","tool_calls=[glob(**/*.ts)]");
+    childHist.innerHTML+=msg("tool","tool:","login.ts, auth.ts, session.ts");
+    childHist.innerHTML+=msg("assistant","assistant:","tool_calls=[read_file(login.ts)]");
+    childHist.innerHTML+=msg("tool","tool:","function login(){...calls auth...}");
+    childHist.innerHTML+=msg("assistant","assistant:","tool_calls=[read_file(auth.ts)]");
+    childHist.innerHTML+=msg("tool","tool:","function auth(){...calls session...}");
+    statEl.innerHTML="⏳ 子 Agent 探索中(父看不到这些中间轨迹)...";
+  },700);
+  setTimeout(()=>{
+    childHist.innerHTML+=msg("assistant","assistant:","(finalText) login()→auth()→session(),证据:login.ts:12, auth.ts:8, session.ts:3");
+    parentHist.innerHTML+=msg("tool","tool:","login()→auth()→session(),证据:login.ts:12, auth.ts:8, session.ts:3 <span style='color:var(--faint)'>(toolCallId=parent-task)</span>");
+    parentHist.innerHTML+=msg("assistant","assistant:","调用链已追踪完毕:login 调用 auth,auth 调用 session。");
+    statEl.innerHTML="✅ 完成。父 history 仅 4 条消息(干净);子 Agent 探索轨迹<b>未</b>进入父历史。子写入的文件仍留在同一 workspace。";
+  },1700);
+};
+document.getElementById("reset").onclick=()=>{parentHist.innerHTML="";childHist.innerHTML="";statEl.innerHTML="状态:未启动。点「启动 task」开始。";};
+
+const questions=[
+  {q:"task 工具解决的核心问题是?",o:["权限隔离","上下文污染:把独立探索隔离到全新历史,父只收最终结论","并发执行","磁盘持久化"],a:1,e:"隔离只指消息历史隔离。子看不到父历史,父看不到子中间轨迹。但子写的文件保留,父子同进程同 Hook 同权限同 workspace 同 identity。Subagent 不是 OS 沙箱。"},
+  {q:"父 Agent 的 history 会收到子 Agent 的什么?",o:["全部工具轨迹","只有 finalText,按 tool_call_id 配对回填","只有错误","子 Agent 的 system prompt"],a:1,e:"SubagentTool 只返回 result.finalText。父 history 只有 user/assistant(task)/tool(finalText)/assistant 四条。子内部历史不 append 到父。配对契约无例外。"},
+  {q:"子 Agent 使用的是新权限系统吗?",o:["是,子有独立权限","否,父子共享同一 PermissionPolicy 和 HookRegistry","子权限更宽松","子权限更严格"],a:1,e:"构造时传入父会话组合根创建的同一实例:hooks/permissionPolicy/workspace/identity。子调用顺序仍是 PreToolUse→PermissionPolicy→handler→PostToolUse。workspace 外写仍被硬边界 deny。"},
+  {q:"为什么禁止递归委派?有几层防护?",o:["1层,工厂不注册","2层:工厂不注册 + 运行时 tools.names.includes(task) 拒绝","3层","不禁止,允许递归"],a:1,e:"工厂不注册是正常路径,运行时拒绝保护工厂被错误改写。若子仍生成 task(...),Registry 返回 unknown_tool。P06 只保留一层委派,避免无限嵌套。"},
+  {q:"子 Agent 30 轮没给最终文本,父会收到什么?",o:["第30轮最后一个工具输出","Error [subagent_turn_limit],不能拿工具输出冒充答案","空字符串","抛异常终止父 run"],a:1,e:"公共 Loop 抛 AgentLimitError,task handler 转成 subagent_turn_limit 稳定错误。父不会收到最后一个工具输出。其他异常脱敏成 subagent_execution_error,不泄漏 API Key/路径。"},
+  {q:"task 的 effect 为什么是 external 而不是 write?",o:["因为它写文件","它发起一段独立执行而非直接读写文件;审批仍由工具名和硬边界决定,不会把子工具误判成磁盘写入","OpenAI 要求","为了跳过审批"],a:1,e:"external 表示发起独立执行。第3章审批由工具名和硬边界决定,不会因 task 标 external 把所有子工具误判成磁盘写入。子工具是否允许写盘仍由各自工具名决定。"},
+  {q:"子 Agent 写入工作区内的文件,父 Agent 能看到吗?",o:["不能,完全隔离","能看到:子写的文件留在同一 workspace,父可继续读/编辑/验证(历史隔离≠文件隔离)","会自动删除","存到临时副本"],a:1,e:"历史隔离不等于文件隔离。子写出的文件不是临时副本,父之后可继续使用。但子的中间工具轨迹(读/搜的过程)不进入父 history。"},
+  {q:"「自包含」的 task description 为什么重要?",o:["为了简洁","子 Agent 不继承父 history,描述必须自带对象/目标/证据要求,否则信息不足","OpenAI 要求","模型偏好"],a:1,e:"坏描述「继续处理刚才那个问题」——子看不到「刚才」。好描述「检查 package.json 和测试目录,确认测试框架,只返回文件内容支持的结论」——对象目标证据都明确。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!分身协作你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看历史隔离和递归禁止":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

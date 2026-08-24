@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 8 章 · 四级压缩法干掉上下文膨胀</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  /* compact sim */
+  .comp{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .comp-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .layers{display:flex;flex-direction:column;gap:8px}
+  .layer{border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;opacity:.5;transition:.2s}
+  .layer.on{opacity:1}.layer.active{border-color:var(--accent);background:rgba(124,156,255,.06)}
+  .layer .ln{flex-shrink:0;width:36px;height:36px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem}
+  .layer .ld{flex:1;font-size:.82rem}.layer .ld .lt{font-weight:600}.layer .ld .lsub{color:var(--muted);font-size:.76rem}
+  .layer .cost{font-size:.72rem;padding:2px 8px;border-radius:999px;white-space:nowrap}.cost.free{background:rgba(74,222,128,.15);color:var(--ok)}.cost.model{background:rgba(248,113,113,.15);color:var(--bad)}
+  .comp-meter{margin-top:14px;padding:12px;border-radius:8px;background:var(--code-bg)}
+  .comp-meter .lbl{font-size:.82rem;margin-bottom:6px}.comp-meter .lbl b{color:var(--accent)}
+  .bar{height:14px;border-radius:4px;background:var(--surface2);overflow:hidden;position:relative}
+  .bar .fill{height:100%;transition:.3s}.bar .thr{position:absolute;top:0;bottom:0;width:2px;background:var(--bad)}
+  .hist-viz{margin-top:12px;font-family:monospace;font-size:.74rem;color:var(--muted);line-height:1.5}
+  .hist-viz .grp{display:inline-block;padding:2px 6px;margin:1px;border-radius:3px;background:var(--surface2);border:1px solid var(--border)}
+  .hist-viz .grp.kept{border-color:var(--ok)}.hist-viz .grp.snip{opacity:.3;text-decoration:line-through}.hist-viz .grp.micro{border-style:dashed;border-color:var(--warn)}.hist-viz .grp.summary{border-color:var(--accent);background:rgba(124,156,255,.1)}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 8 章</span>
+  <span class="title">四级压缩法干掉上下文膨胀 <span class="muted">· Agent架构实操八</span></span>
+  <nav><a href="#concepts">概念</a><a href="#sim">压缩管线演示</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>如何用「四级压缩法」干掉 Agent 上下文膨胀?</h1>
+    <div class="sub">加大窗口只能推迟问题。真正要做的是管理信息生命周期:大结果放哪、旧内容怎样降级、哪些消息绝不能拆开、压缩后如何追溯原始记录。核心原则:<b>先便宜,后昂贵</b>。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 15 分钟</span>
+      <span class="pill">🗜 四级管线</span>
+      <span class="pill">🔗 消息原子组</span>
+      <span class="pill">+ARTIFACTS/COMPACTION</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>四层压缩分别是什么?为什么按成本从低到高执行?</li>
+        <li>canonical history / request history / transcript / artifact 四者区别?</li>
+        <li>什么是消息原子组?为什么不能只看相邻两条消息?</li>
+        <li>大工具结果落盘的阈值是多少?为什么按 UTF-8 bytes 不按字符串 length?</li>
+        <li>50,000 bytes 摘要阈值是什么?不是什么?</li>
+        <li>finish_reason==="length" 等于 prompt-too-long 吗?P08 Loop 自动恢复了吗?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 核心原则:先便宜,后昂贵 <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol><li><b>大工具结果落盘</b>:只把路径+有界预览留在历史。</li><li><b>snip</b>:按完整消息组裁掉中段。</li><li><b>micro</b>:较早工具组结果替换为占位符。</li><li><b>模型摘要</b>:前三层后仍超阈值才调用模型。</li></ol>
+        <p>前三层不增加模型请求,第四层才发起一次不带工具的摘要请求。压缩在两次模型调用之间预处理 request history,不改 System Prompt 静态前缀。</p>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 三种历史 + 一种产物 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>对象</th><th>含义</th><th>被请求压缩改写?</th></tr><tr><td>canonical history</td><td>AgentRunner.#history 会话事实;RunResult.history 返回不可变快照</td><td>否</td></tr><tr><td>request history</td><td>每次模型调用前从 canonical 复制出的请求快照</td><td>是(只影响本次及后续可复用快照)</td></tr><tr><td>transcript</td><td>进入模型摘要前保存的 canonical history JSONL 快照</td><td>否;文件独占发布</td></tr><tr><td>tool-result artifact</td><td>大工具结果的完整 UTF-8 内容</td><td>否;canonical 中只存路径和预览</td></tr></table>
+        <div class="callout warn"><span class="lab">关键边界</span> 大工具结果在写入 canonical history <b>之前</b>处理,所以 canonical 里是 <code>&lt;persisted-tool-result&gt;</code> 引用而非大正文。snip/micro/摘要都发生在请求快照上,不删除 canonical 中已存在消息。</div>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 消息原子组:不能只看相邻两条 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>一条 assistant 消息可含多个 tool_calls,合法历史不是「一条调用配一条结果」,而是不可拆分原子组:</p>
+        <pre><code>assistant(tool_calls=[call_a, call_b])
+tool(tool_call_id=call_a)
+tool(tool_call_id=call_b)</code></pre>
+        <p>validatedGroups() 先 validateToolPairing() 再划成两类组:普通消息单独一组;带工具调用的 assistant + 全部 tool results 共同构成工具交换组。snip 的保留边界、micro 的替换单位都用组,不会留孤儿 tool 或缺结果的 assistant。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 第一层:大结果按 UTF-8 bytes 落盘 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>阈值用真实 UTF-8 字节数 <code>Buffer.from(content,"utf8").byteLength</code>:</p>
+        <ul><li>单项结果 &gt; 30,000 bytes 直接落盘(等于阈值仍保留);</li><li>未落盘合计仍 &gt; 200,000 bytes,按字节数从大到小继续落盘;</li><li>完整内容写 <code>.agent_tutorial/artifacts/tool-result-&lt;id&gt;.txt</code>;</li><li>消息保留相对路径、original_bytes、头部最多 2,000 bytes + 尾部最多 2,000 bytes 预览。</li></ul>
+        <div class="callout warn"><span class="lab">注意</span> 2,000 是 bytes 不是字符。UTF-8 中文占多字节,边界切在多字节字符中间时预览丢弃不完整字符,实际显示字符数可能更少。</div>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 第二层 snip + 第三层 micro <span class="chev">▸</span></summary>
+      <div class="body">
+        <p><b>snip</b>:超过 50 个消息组触发,保留前 3 组 + 一条 <code>[Compacted: N message groups omitted]</code> 标记 + 后 46 组。统计的是<b>消息组</b>不是 ChatMessage 条数。</p>
+        <p><b>micro</b>:完整保留最近 3 个工具交换组,更早工具组所有结果替换为 <code>[Earlier tool result compacted. Re-run if needed.]</code>。不删除 assistant 调用,不改 tool_call_id,整个原子组合法。snip 先执行,micro 后执行,都基于不可变数组快照生成 request history,不原地改 canonical。</p>
+      </div>
+    </details>
+    <details class="card"><summary>6 · 第四层:50,000 bytes 才摘要 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>前三层后 historyUtf8Bytes() 把请求快照转规范 OpenAI JSONL 算 UTF-8 bytes,只有 <b>&gt; 50,000</b> 才进模型摘要。顺序:先存未压缩 canonical 快照为 transcript → summarizer 读已过便宜层的 request history → 摘要请求不携带工具 → 只接受 finishReason==="stop"、无 toolCalls、非空且字段精确的 JSON object → 成功后请求历史变成一条 system 消息(含 transcript 路径 + 五字段)。</p>
+        <div class="callout bad"><span class="lab">50,000 不是</span> JS 字符串 length / 工具正文长度之和 / tokenizer token 数 / 供应商承诺窗口。它是确定性字节预算(含序列化的 role、tool_calls、tool_call_id、JSON 标点和换行)。</div>
+        <p>五字段:<code>current_goal</code>、<code>key_findings</code>、<code>files_read_or_changed</code>、<code>remaining_work</code>、<code>user_constraints</code>。</p>
+      </div>
+    </details>
+    <details class="card"><summary>7 · prompt-too-long:原语有,Loop 信号没有 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>信号</th><th>含义</th><th>P08 行为</th></tr><tr><td>finishReason==="length"</td><td>请求已接受但<b>输出</b>达上限,响应不完整</td><td>抛 IncompleteModelReplyError,不做响应式压缩</td></tr><tr><td>输入 prompt-too-long</td><td>输入上下文被供应商拒绝</td><td>尚无统一 typed signal,无自动恢复接线</td></tr><tr><td>compactOnPromptTooLong(retryCount:0)</td><td>调用者完成错误分类后可用的恢复原语</td><td>单独可测;只允许一次尝试</td></tr></table>
+        <div class="callout bad"><span class="lab">不能</span> 把 finish_reason==="length" 当 prompt-too-long;不能靠异常字符串含 prompt_too_long 冒充通用信号。错误分类应在模型适配器或恢复层完成。</div>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:四级压缩管线</h2>
+    <div class="sec-desc">拖动滑块增加历史大小,看四层如何依次生效。注意前三层免费,第四层才调模型;且只改 request history 不改 canonical。</div>
+    <div class="comp">
+      <div class="comp-ctrl">
+        <span style="font-size:.85rem">历史大小:</span>
+        <input type="range" id="size" min="0" max="100" value="20" style="flex:1;min-width:200px;accent-color:var(--accent)">
+        <span id="sizeTxt" style="font-family:monospace;font-size:.85rem;color:var(--accent)">20K</span>
+      </div>
+      <div class="layers" id="layers"></div>
+      <div class="comp-meter">
+        <div class="lbl">request history(送给模型):<b id="reqSize">20K</b> / 50K 阈值</div>
+        <div class="bar"><div class="fill" id="reqFill" style="width:40%;background:var(--ok)"></div><div class="thr" style="left:100%"></div></div>
+        <div style="font-size:.76rem;color:var(--faint);margin-top:4px">canonical history 不变(<b id="canonSize">20K</b>),transcript 已存(<b id="trState">否</b>)</div>
+      </div>
+      <div class="hist-viz" id="viz"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">压缩不是省 token,而是整理知识:把「需要现场归纳的原始记录」换成「可直接检索的结构化结论」</div>
+    <p>按需加载负责少拿(第7章),Context Compact 负责及时放下(本章)。两者都只影响 request history,canonical history 始终是会话事实。</p>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第七章glm生成.html"><span class="lbl">上一章</span>← Skill 系统</a>
+    <a class="next" href="第九章glm生成.html"><span class="lbl">下一章</span>文件级持久化 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 8 章 / 共 20 章</footer>
+<script>
+const sizeEl=document.getElementById("size"),sizeTxt=document.getElementById("sizeTxt"),layersEl=document.getElementById("layers"),reqSize=document.getElementById("reqSize"),reqFill=document.getElementById("reqFill"),canonSize=document.getElementById("canonSize"),trState=document.getElementById("trState"),viz=document.getElementById("viz");
+const layerDefs=[
+  {n:"1",t:"大结果落盘",sub:"单项>30K 或合计>200K → artifact,留路径+首尾2K预览",cost:"free",cls:"free"},
+  {n:"2",t:"snip 裁中段",sub:"组>50 → 保留前3+标记+后46,整组省略",cost:"free",cls:"free"},
+  {n:"3",t:"micro 降级旧结果",sub:"保留最近3工具组,更早结果→占位符",cost:"free",cls:"free"},
+  {n:"4",t:"模型摘要",sub:"request history >50K → 存transcript + 5字段JSON摘要",cost:"调模型",cls:"model"},
+];
+function render(){
+  const s=+sizeEl.value; const kb=s; sizeTxt.textContent=kb+"K";
+  const big=kb>30, snip=kb>50, micro=kb>25, summary=kb>50;
+  layersEl.innerHTML=layerDefs.map((l,i)=>{
+    const on=[big,snip,micro,summary][i];
+    return `<div class="layer ${on?'on':''} ${on&&i===3?'active':''}"><div class="ln">${l.n}</div><div class="ld"><div class="lt">${l.t}</div><div class="lsub">${l.sub}</div></div><div class="cost ${l.cls}">${l.cost}</div></div>`;
+  }).join("");
+  let reqKb=kb;
+  if(big)reqKb=Math.max(20,reqKb-25);
+  if(snip)reqKb=Math.max(15,reqKb-20);
+  if(micro)reqKb=Math.max(10,reqKb-15);
+  if(summary)reqKb=Math.min(8,reqKb-30);
+  reqSize.textContent=reqKb+"K";
+  const pct=Math.min(100,reqKb/50*100);
+  reqFill.style.width=pct+"%";
+  reqFill.style.background=pct<60?"var(--ok)":pct<90?"var(--warn)":"var(--bad)";
+  canonSize.textContent=kb+"K";
+  trState.textContent=summary?"是(摘要前已存)":"否";
+  // viz
+  let grps=[];
+  for(let i=0;i<Math.min(12,Math.ceil(kb/8));i++)grps.push("grp");
+  let cls=grps.map((_,i)=>{
+    if(summary&&i<grps.length-3)return "summary";
+    if(micro&&i<grps.length-3)return "micro";
+    if(snip&&i>2&&i<grps.length-3)return "snip";
+    return "kept";
+  });
+  viz.innerHTML="消息组视图:<br>"+grps.map((_,i)=>`<span class="grp ${cls[i]}">G${i+1}</span>`).join("")+(summary?'<br><span style="color:var(--accent)">≡ 摘要 system 消息(含 transcript 路径+5字段)</span>':"");
+}
+sizeEl.oninput=render;render();
+
+const questions=[
+  {q:"四级压缩的执行顺序原则是?",o:["先昂贵后便宜","先便宜后昂贵:落盘→snip→micro→模型摘要","随机","只看哪层先触发"],a:1,e:"前三层不增加模型请求(免费),第四层才发起不带工具的摘要请求。按成本从低到高执行,能免费压缩就先免费。"},
+  {q:"canonical history 和 request history 的关键区别?",o:["一样","canonical 是会话事实不被压缩改写;request 是每次调用前从 canonical 复制的快照,可被 snip/micro/摘要改写","canonical 会被压缩删除","request 是永久的"],a:1,e:"大结果在写入 canonical 前处理,canonical 里是 persisted-tool-result 引用。snip/micro/摘要都在请求快照上,不删除 canonical 已存在消息。RunResult.history 返回 canonical 不可变快照。"},
+  {q:"什么是消息原子组?为什么重要?",o:["相邻两条消息","带工具调用的 assistant + 它的全部 tool results 共同构成不可拆分组;裁剪边界基于组,不留孤儿 tool 或缺结果的 assistant","单条消息","按时间分组"],a:1,e:"一条 assistant 可含多个 tool_calls。validatedGroups 先 validateToolPairing 再划组。snip/micro 都用组,不会把 assistant 和它的任一 tool result 拆开。"},
+  {q:"大工具结果落盘的阈值和预览?",o:["单项>30K bytes 落盘,留首尾各2K bytes预览","单项>1000字符","全部落盘不留预览","按 token 数"],a:1,e:"阈值用真实 UTF-8 bytes(Buffer.byteLength)。未落盘合计>200K 按字节数从大到小继续落盘。2,000 是 bytes 不是字符,切在多字节字符中间时预览丢弃不完整字符。"},
+  {q:"50,000 bytes 摘要阈值是什么?不是什么?",o:["是 JS 字符串 length","是 tokenizer token 数","是确定性字节预算(含序列化role/tool_calls/tool_call_id/JSON标点/换行),不是字符串length/token数/供应商窗口","是供应商承诺窗口"],a:2,e:"historyUtf8Bytes 把请求快照转规范 OpenAI JSONL 算 UTF-8 bytes。它能稳定触发压缩,但不保证对所有模型对应相同 token 数。"},
+  {q:"模型摘要成功后,请求历史变成什么?",o:["原文保留","一条 system 消息:含 transcript 路径 + 五字段(current_goal/key_findings/files_read_or_changed/remaining_work/user_constraints)","删除全部历史","变成 user 消息"],a:1,e:"顺序:先存未压缩 canonical 快照为 transcript → summarizer 读已过便宜层的 request history → 摘要请求不带工具 → 只接受 stop/无toolCalls/非空精确JSON → 成功后请求历史变成含路径+五字段的 system 消息。"},
+  {q:"finish_reason===\"length\" 等于 prompt-too-long 吗?",o:["是,都触发响应式压缩","否:length 是输出达上限(请求已接受);prompt-too-long 是输入被拒。P08 抛 IncompleteModelReplyError 不做响应式压缩","是,都会自动恢复","取决于供应商"],a:1,e:"P08 Loop 尚未接入供应商无关的 prompt-too-long 信号。compactOnPromptTooLong 是可测原语但 Loop 不自动调用。不能靠异常字符串含 prompt_too_long 冒充信号,错误分类应在适配器/恢复层。"},
+  {q:"压缩缓存「相同历史不重复压缩,纯追加复用前缀」由什么实现?",o:["扫描消息正文的 [COMPRESSED] 标记","historiesEqual() 和 historyStartsWith() 用稳定 JSON 识别「完全相同」和「纯追加」","靠 token 计数","靠时间戳"],a:1,e:"[Compacted] 标记让 request history 可读,但缓存判断由 historiesEqual/historyStartsWith 完成,不是扫描正文。纯追加时复用已压缩前缀只接新增后缀。缓存只存实例内,不跨进程不持久化。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!四级压缩你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看四层和原子组":"📚 重看核心概念和管线演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

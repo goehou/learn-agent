@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 7 章 · 工业级 Agent Skill 技能系统</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  /* skill sim */
+  .skill{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .skill-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .skill-box{border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface2);min-height:140px}
+  .skill-box h4{margin:0 0 8px;font-size:.82rem;color:var(--muted)}
+  .skill-cat-item{padding:6px 8px;border-radius:6px;background:var(--code-bg);margin:4px 0;font-size:.78rem;cursor:pointer;border:1px solid var(--border);transition:.15s}
+  .skill-cat-item:hover{border-color:var(--accent)}
+  .skill-cat-item .nm{font-family:monospace;font-weight:700;color:var(--accent)}.skill-cat-item .ds{color:var(--muted);font-size:.74rem;display:block;margin-top:2px}
+  .skill-body{font-size:.8rem;padding:8px;border-radius:6px;background:var(--code-bg);border:1px solid var(--border);font-family:monospace;white-space:pre-wrap;min-height:60px;color:var(--teal)}
+  .skill-empty{color:var(--faint);font-size:.8rem;font-style:italic}
+  .cost-bar{margin-top:12px;padding:10px;border-radius:8px;background:var(--code-bg);font-size:.82rem}
+  .cost-meter{height:8px;border-radius:4px;background:var(--surface2);margin-top:6px;overflow:hidden}.cost-meter .fill{height:100%;background:linear-gradient(90deg,var(--ok),var(--warn),var(--bad));transition:.3s}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+  @media(max-width:640px){.skill-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 7 章</span>
+  <span class="title">工业级 Agent Skill 技能系统 <span class="muted">· Agent架构实操七</span></span>
+  <nav><a href="#guide">导读</a><a href="#glossary">术语</a><a href="#concepts">概念</a><a href="#sim">两级加载</a><a href="#run">运行</a><a href="#recap">小结</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>别再硬塞 Prompt 了!</h1>
+    <div class="sub">三份文档几千行全塞 System Prompt,改一行注释也带着全量。本章两级加载:目录(名称+描述)进 Prompt,正文只在 <code>load_skill</code> 显式调用后进 tool result。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 12 分钟</span>
+      <span class="pill">📚 两级加载</span>
+      <span class="pill">🛡 名称≠路径</span>
+      <span class="pill">+skills capability</span>
+    </div>
+  </div>
+  <section id="guide">
+    <h2><span class="num">🎯</span> 本章导读</h2>
+    <div class="sec-desc">读完这一章,你应该能用一句话回答下面每个问题。</div>
+    <div class="callout"><span class="lab">读完能做到</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>说清「知识管理」和「知识加载」的区别:目录常驻提示,正文只在调用 load_skill 后加载。</li>
+        <li>读懂 Skill 的目录与清单契约(SKILL.md frontmatter 的必需字段)。</li>
+        <li>解释为什么模型只能给 name 不能给 path,以及扫描与加载为什么必须双重校验路径。</li>
+        <li>说出重名时为什么直接报错优于静默覆盖,以及恶意 Skill 为什么误导不了。</li>
+        <li>跑通第 7 章:先 load_skill 加载 typescript-style,再总结其中约定。</li>
+      </ol>
+    </div>
+
+    <details class="card">
+      <summary>你需要先具备什么 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>需要</th><th>说明</th></tr><tr><td>读完第 1—6 章</td><td>会看工具注册、load 类副作用、task 委派即可</td></tr><tr><td>YAML/README 常识</td><td>知道 frontmatter 大概是什么</td></tr></table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>建议的阅读路线 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>本章导读(你在这)
+  ↓
+① 先看一眼一次真实的加载    ← 目录与正文各在哪一轮出现
+  ↓
+② 知识管理和知识加载是两件事 ← 构建期快照 vs 每次现读
+  ↓
+③ 目录和清单契约            ← frontmatter 必需字段
+  ↓
+④ 扫描只读 frontmatter      ← 预算/启动成本
+  ↓
+⑤ load_skill:按名加载      ← name 不是 path;双重校验
+  ↓
+⑥ 接入注册表 + 与第 6 章对比 ← 子 Agent 没有目录
+  ↓
+⑦ 离线证明 + 运行 + 实验
+  ↓
+⑧ 小结                     ← 三句话 + 八条 + 自测</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <section id="glossary">
+    <h2><span class="num">📇</span> 术语速查</h2>
+    <div class="sec-desc">本章第一次出现的词。先扫一眼,正文里遇到不认识的词回来查即可。<b>不用背</b>。</div>
+    <table>
+      <tr><th style="width:30%">术语</th><th>一句话解释</th></tr>
+      <tr><td><b>Skill</b></td><td>一个自包含的技能目录:SKILL.md + 目录级 frontmatter</td></tr>
+      <tr><td><b>目录(catalog)</b></td><td>所有 Skill 的 name + 单行描述;常驻 System Prompt,不含正文</td></tr>
+      <tr><td><b>SKILL.md</b></td><td>技能正文文件。frontmatter 必需字段 + 正文</td></tr>
+      <tr><td><b>frontmatter</b></td><td>文件头 <code>---</code> 之间的元数据。扫描只解析到第二个 <code>---</code></td></tr>
+      <tr><td><b>load_skill</b></td><td>按名称加载正文的工具。模型只能给 name,不能给 path</td></tr>
+      <tr><td><b>maxCatalogBytes</b></td><td>目录总字节预算(UTF-8)。超限丢整条;被丢弃的 Skill 仍可直接 load</td></tr>
+      <tr><td><b>构建期快照</b></td><td>目录是启动时生成并冻结的,改了要重启才生效</td></tr>
+      <tr><td><b>双重校验</b></td><td>扫描时校验过的路径,加载时用 realpath 全部重新校验一遍</td></tr>
+      <tr><td><code>skill_*</code> 错误码</td><td>skill_not_found / skill_catalog_error / skill_load_error 等,都不含内部文件路径</td></tr>
+    </table>
+  </section>
+
+  <section id="wire">
+    <h2><span class="num">📡</span> 先看一眼一次真实的加载</h2>
+    <div class="sec-desc">目录与正文各在哪一轮出现,以及子 Agent 加载时看到什么。</div>
+    <details class="card" open>
+      <summary>目录与正文各在哪一轮出现 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>请求1  请求1 的 system 里有目录(所有 SKILL 的 name+description,无正文)
+       → 模型看到目录,决定调用 load_skill
+请求2  model.load(request): 用 name 查出路径,现读正文
+       工具结果 = 完整正文回到消息流 → 模型基于正文回答
+
+# 注意:第一次请求时,SKILL.md 正文不在上下文里;frontmatter 也不在(只有目录条目)
+# 加载正文需要人点"同意"吗?不需要——load_skill 是只读 read 类,不弹审批框</code></pre>
+      </div>
+    </details>
+    <details class="card">
+      <summary>子 Agent 加载 Skill 时看到什么 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>子 Agent 有 <code>load_skill</code> 但<b>没有目录</b>——它不知道有哪些技能,只能靠 <code>task</code> 的 description 里写明的 Skill 名去加载。所以委派时描述要写清技能名。</p>
+      </div>
+    </details>
+  </section>
+
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 知识管理和知识加载是两件事 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>层级</th><th>进入上下文的内容</th><th>注入时机</th><th>上限</th></tr><tr><td>Skill 目录</td><td>名称+单行描述</td><td>构建 Agent 时进 System Prompt</td><td>100 项 / 8000 UTF-8 bytes</td></tr><tr><td>Skill 正文</td><td>SKILL.md frontmatter 之后的正文</td><td>模型显式调用 load_skill 后进 tool result</td><td>单次加载一个已注册 Skill</td></tr></table>
+        <p>目录让模型「知道有哪些」,正文只在真正需要时付出上下文成本。</p>
+        <div class="callout warn"><span class="lab">KV Cache 澄清</span> 目录是稳定前缀可复用 KV Cache,但「友好」≠「零成本」。会话开始时目录本身仍要完成一次 prefill。收益在于:启动不需要把全部正文读进 Prompt;后续加载新 Skill 不改写已缓存前缀。</div>
+      </div>
+    </details>
+    <details class="card"><summary>2 · description 是路由条件,不是功能简介 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>最有效的写法是 <code>Use when / Don't use when</code> 并明确给出反例。缺少反例时,宽泛描述容易在不相关任务上误触发,路由准确率明显下降。</p>
+        <div class="callout ok"><span class="lab">好描述</span> <code>Use when 编写或审查 TypeScript 类型、模块、导入和运行时校验;Don't use for SQL、部署或通用项目规划。</code></div>
+        <p>frontmatter 边界:name 最多 64 字符,只允许小写字母/数字/单个连字符分段,必须与目录名一致;nul/com1/lpt9 等 Windows 设备名非法;重复名称直接使扫描失败。</p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 扫描阶段只读 frontmatter <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>旧做法启动时 readFileSync 读完整正文存进全局 Map,启动成本和正文总量绑定。当前 <code>SkillRegistry.scan()</code> 只读到 frontmatter 结束分隔符,建立不可变元数据快照,正文不在扫描时解码。</p>
+        <p>预算按 <code>Buffer.byteLength(catalog, "utf8")</code> 实际 byte 数计算,不拿 JS 字符串 length 冒充 bytes(中文通常占多个 UTF-8 bytes)。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · load_skill:名称不是路径 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>load_skill 输入只有 <code>name</code>,不接受 path,不接受额外字段。<code>../secret</code> 在参数校验阶段得到 invalid_arguments;格式合法但未注册得到 skill_not_found。</p>
+        <p>模型不能通过 name 参数直接指定任意文件路径。name 必须是安全 slug,与目录名一致,这条约束让名称/目录/加载目标形成稳定映射。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 加载时不盲信启动扫描(重新校验 4 件事) <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol><li>Skill 目录解析后仍位于已扫描的 Skill 根目录内;</li><li>SKILL.md 解析后的目标仍位于对应 Skill 目录内且是文件;</li><li>完整文件可按 UTF-8 解码,frontmatter 仍有效;</li><li>当前 name 仍与请求名称和目录名一致。</li></ol>
+        <p>全部通过后返回 frontmatter 后面的<b>正文</b>(不是完整 SKILL.md,也不是文件路径)。它作为 tool result 配对回填,下一轮模型才看到正文。</p>
+      </div>
+    </details>
+    <details class="card"><summary>6 · 正文不能放宽硬权限 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>load_skill 的 effect 是 read,但仍过第 4 章 Hook 和第 3 章权限管线。Skill 正文只是任务指导,不能放宽硬权限,也不能把工作区外写入变成允许。</p>
+        <p>正文可引用子文档/脚本(如「先读 reference.md,再按 scripts/build.ts 生成」),但 P07 不会自动索引或授权执行。模型加载正文后仍要通过 read_file/shell 等普通工具,走既有路径边界、权限和 Hook。</p>
+      </div>
+    </details>
+    <details class="card"><summary>7 · P07 vs P06 + 子 Agent <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>父工具从 7 个变 8 个,新增 load_skill(注册在 task 之后)。P07 继承 P06,父和子 Agent 都能调用 load_skill。子工具集仍不含 task(递归委派仍禁止),但加 load_skill 不重新打开递归。</p>
+        <p>父子共享的是 Skill 元数据快照和同一套路径边界,不共享对话历史。子加载的正文只进子历史,父历史最终只得到 task 的结论。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:两级加载</h2>
+    <div class="sec-desc">左边是常驻 System Prompt 的目录(名称+描述),点一个 Skill 看右边正文如何只在 load_skill 后才进入会话(tool result)。注意成本条的变化。</div>
+    <div class="skill">
+      <div class="skill-row">
+        <div class="skill-box">
+          <h4>📋 目录(常驻 System Prompt,~800 bytes)</h4>
+          <div id="catalog"></div>
+        </div>
+        <div class="skill-box">
+          <h4>📖 正文(仅 load_skill 后进 tool result)</h4>
+          <div id="body" class="skill-body"><span class="skill-empty">未加载。点左边某个 Skill 调用 load_skill。</span></div>
+        </div>
+      </div>
+      <div class="cost-bar">
+        上下文成本:<b id="costTxt">目录 800 bytes(常驻)</b>
+        <div class="cost-meter"><div class="fill" id="costFill" style="width:8%"></div></div>
+        <div style="font-size:.74rem;color:var(--faint);margin-top:4px">全塞 Prompt(旧做法)≈ 12000 bytes 常驻 vs 两级加载 = 800 常驻 + 按需</div>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">目录让模型「知道有什么」,正文让模型「用到什么时再读」,路径校验让「名称到文件」不能成为越权入口</div>
+  </section>
+  <section id="run">
+    <h2><span class="num">🚀</span> 运行第 7 章</h2>
+    <div class="sec-desc">前置条件和前几章一样。下面几步,每步都给出预期结果。</div>
+
+    <details class="card" open>
+      <summary>第 0–1 步 · 环境与离线测试 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>Set-Location 'F:\笔记\Agent实操\code'
+npm ci
+npm run test:ch07</code></pre>
+        <pre><code> Test Files  18 passed (18)
+      Tests  143 passed (143)</code></pre>
+        <p>中间的 <code>配置错误: Missing required settings: ...</code> 是 <code>config.test.ts</code> 断言的预期输出(验证缺少配置必须明确报错,不静默降级),不是报错。看最后一行 <code>passed</code> 即可。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 2–4 步 · 确认 Skill、观察加载轮次、让子 Agent 加载 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run ch07 -- --prompt "先调用 load_skill 加载 typescript-style，再总结其中两条约定"
+# 请求1:system 里只有目录(无正文);请求2:load_skill 后正文进 tool result
+
+npm run agent-tutorial -- run --chapter 7 --prompt "调用 task，让子 Agent 加载 typescript-style 并检查当前项目是否遵守它"</code></pre>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>常见报错排查表 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:44%">现象</th><th>原因 / 处理</th></tr>
+          <tr><td>配置错误出现在 npm run ch07 之后直接退出</td><td>code 下 .env 没配。复制 .env.example 为 .env 并填三个值</td></tr>
+          <tr><td>模型不知道有哪些 Skill</td><td>目录在 system;如果没看到,检查 skills 目录是否有合法 SKILL.md</td></tr>
+          <tr><td>load_skill 报 skill_not_found</td><td>name 拼错或该技能被预算丢弃;被丢弃的仍可直接按名加载</td></tr>
+          <tr><td>重名报错</td><td>两个目录同 name 直接报错,优于静默覆盖</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="verify">
+    <h2><span class="num">🧪</span> 验证与实验</h2>
+    <div class="sec-desc"><code>npm run test:ch07</code> 执行 18 个测试文件、143 个测试。四个只读不写的实验:</div>
+    <details class="card">
+      <summary>四个建议动手做的小实验 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:34%">实验</th><th>预期</th><th>学到什么</th></tr>
+          <tr><td><b>一·证明目录里没有正文</b><br><small>检查 catalog 的字节数</small></td><td>目录只有 name+description,无正文</td><td>两级加载:常驻提示 vs 按需正文</td></tr>
+          <tr><td><b>二·预算压到 10 bytes</b><br><small>设 maxCatalogBytes=10</small></td><td>catalogEntries 为空;loadSkill 仍可用</td><td>预算按 UTF-8 byte,超限丢整条</td></tr>
+          <tr><td><b>三·制造五种坏 frontmatter</b><br><small>缺字段/坏 YAML/超预算…</small></td><td>扫描时按不同错误码失败</td><td>失败时机在构建期,不在模型运行时</td></tr>
+          <tr><td><b>四·制造重名</b></td><td>直接报错,不静默覆盖</td><td>让配置错误在组合根就暴露</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">📝</span> 本章小结</h2>
+    <div class="sec-desc">三句话版本、一定要记住的八条、以及本章<b>还没做什么</b>。</div>
+
+    <div class="callout"><span class="lab">三句话版本</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>目录(名称 + 单行描述)常驻 System Prompt,正文只在模型调用 load_skill 后进 tool result。</li>
+        <li>模型只能给 name,不能给 path——名字到文件的映射由 Harness 决定。</li>
+        <li>扫描时校验过的路径,加载时全部重新校验一遍。</li>
+      </ol>
+    </div>
+
+    <details class="card" open>
+      <summary>一定要记住的八条 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:6%">#</th><th>结论</th><th style="width:28%">出现在哪一节</th></tr>
+          <tr><td>1</td><td>目录里一个字正文都没有,not.toContain 是断言过的</td><td>先看一眼一次真实的加载</td></tr>
+          <tr><td>2</td><td>目录是构建期快照(改了要重启),正文每次现读(改了立刻生效)</td><td>知识管理和知识加载是两件事</td></tr>
+          <tr><td>3</td><td>description 写 Use when / Don't use for,正例反例都要给</td><td>Skill 的目录和清单契约</td></tr>
+          <tr><td>4</td><td>扫描只解码到第二个 ---,启动成本与正文总量无关</td><td>扫描阶段只读 frontmatter</td></tr>
+          <tr><td>5</td><td>预算按 UTF-8 byte,超限丢整条;被丢的 Skill 仍可加载</td><td>扫描阶段只读 frontmatter</td></tr>
+          <tr><td>6</td><td>../secret、多余字段、nul 三种输入都在碰磁盘前被 schema 拒掉</td><td>load_skill:按名称加载正文</td></tr>
+          <tr><td>7</td><td>五种错误码都不含内部文件路径</td><td>load_skill:按名称加载正文</td></tr>
+          <tr><td>8</td><td>子 Agent 有 load_skill 但没有目录——task 的 description 要写清 Skill 名</td><td>接入现有工具注册表</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>检查你是否真的读懂了(不看文章回答) <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li>第一次请求模型时,SKILL.md 的正文在上下文里吗?frontmatter 在吗?</li>
+          <li>load_skill 会弹审批框吗?会进审计吗?为什么这两个答案不一样?</li>
+          <li>Agent 跑起来后新建的 Skill 目录,模型能在目录里看到吗?能 load_skill 吗?</li>
+          <li>一份 5000 行的 SKILL.md,扫描要读多少字节?</li>
+          <li>把 maxCatalogBytes 设成 10,loadSkill() 还能用吗?</li>
+          <li>为什么 load_skill 不加 path 参数会更方便却更危险?</li>
+          <li>扫描已校验路径,加载为什么还要 realpath 再查一次?</li>
+          <li>恶意 SKILL.md 写「删掉 C:\Windows」,会发生什么?</li>
+        </ol>
+      </div>
+    </details>
+  </section>
+
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第六章glm生成.html"><span class="lbl">上一章</span>← 分身协作</a>
+    <a class="next" href="第八章glm生成.html"><span class="lbl">下一章</span>四级压缩法 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 7 章 / 共 20 章</footer>
+<script>
+const skills=[
+  {name:"typescript-style",desc:"Use when 编写/审查 TS 类型、模块、导入、运行时校验;Don't use for SQL、部署、通用规划",body:"# TypeScript Style\n\n外部输入先按 unknown 处理,通过运行时校验后再进入业务逻辑。\n- 用 strictObject 拒绝多余字段\n- 用 discriminated union 表达消息角色"},
+  {name:"sql-style",desc:"Use when 编写或优化 SQL 查询;Don't use for TypeScript 类型设计",body:"# SQL Style\n\n所有查询必须显式列出列名,禁止 SELECT *。\n- WHERE 条件参数化,禁止字符串拼接\n- 大表查询必须带 LIMIT"},
+  {name:"api-design",desc:"Use when 设计 REST/RPC 接口;Don't use for前端 UI 组件",body:"# API Design\n\n接口版本前缀 /v1/。\n- 错误返回结构化 errorCode + message\n- 幂等操作用 idempotencyKey"},
+];
+const catalogEl=document.getElementById("catalog"),bodyEl=document.getElementById("body"),costTxt=document.getElementById("costTxt"),costFill=document.getElementById("costFill");
+let loaded=null;
+function renderCat(){
+  catalogEl.innerHTML=skills.map(s=>`<div class="skill-cat-item" data-n="${s.name}"><span class="nm">${s.name}</span><span class="ds">${s.desc}</span></div>`).join("");
+}
+catalogEl.addEventListener("click",e=>{const it=e.target.closest(".skill-cat-item");if(!it)return;const n=it.dataset.n;const s=skills.find(x=>x.name===n);loaded=n;bodyEl.textContent=s.body;const bytes=800+new Blob([s.body]).size;costTxt.innerHTML=`目录 800(常驻) + 正文 ${new Blob([s.body]).size}(load_skill 后) = ${bytes} bytes`;costFill.style.width=Math.min(100,bytes/120)+"%";});
+renderCat();
+
+const questions=[
+  {q:"知识管理和知识加载为什么是两件事?",o:["一样,都是读文件","管理=目录(名称+描述)常驻 Prompt;加载=正文只在 load_skill 后进 tool result","管理是写,加载是读","没有区别"],a:1,e:"目录让模型知道有哪些规范可用,但不需要启动时读完所有正文。正文只在真正需要时付出上下文成本。两级加载。"},
+  {q:"Skill 的 description 最有效的写法是?",o:["一句话功能简介","Use when / Don't use when 并明确给出反例","越长越好","只写工具名"],a:1,e:"description 是模型做路由判断的条件,不是功能简介。缺少反例时宽泛描述容易在不相关任务上误触发,路由准确率明显下降。"},
+  {q:"扫描阶段为什么只读 frontmatter 不读完整正文?",o:["正文不重要","避免启动成本和正文总量绑定;只读 frontmatter 建立元数据快照,正文按需加载","YAML 解析限制","节省内存"],a:1,e:"旧做法 readFileSync 读完整正文存全局 Map,启动成本和正文总量绑定。当前 scan() 只读到 frontmatter 结束分隔符,正文不在扫描时解码。"},
+  {q:"load_skill 为什么不接受 path 参数?",o:["路径太长","防止模型通过 name 指定任意文件路径越权;name 必须是安全 slug 且与目录名一致","OpenAI 不支持","性能考虑"],a:1,e:"../secret 在参数校验阶段得 invalid_arguments。name 与目录名一致,名称/目录/加载目标形成稳定映射,不能成为越权入口。.strict() 拒绝额外字段。"},
+  {q:"load_skill 加载时为什么不盲信启动扫描?重新校验几件事?",o:["1件","4件:目录仍在内、SKILL.md 仍是文件且在内、UTF-8 可解码且 frontmatter 有效、name 三方一致","2件","不重新校验"],a:1,e:"防止扫描后被链接替换逃逸。全部通过后返回 frontmatter 后的正文(不是完整文件,也不是路径),作为 tool result 配对回填。"},
+  {q:"「对 KV Cache 友好」等于「零成本」吗?",o:["是,完全免费","否:会话开始时目录本身仍要完成一次 prefill,之后才按缓存读取。收益是启动不需要全正文进 Prompt + 加载新 Skill 不改写已缓存前缀","是,目录不占 token","只第一次免费"],a:1,e:"目录是稳定前缀可复用 KV Cache,但友好≠零成本。第一次加载某 Skill 正文时也要先 prefill,之后才作为会话历史复用缓存。"},
+  {q:"Skill 正文引用的子文档/脚本会自动执行吗?",o:["会自动执行","不会:P07 不自动索引或授权执行,模型加载正文后仍要通过 read_file/shell 等普通工具走既有边界","取决于配置","只在 fork 模式"],a:1,e:"正文可引用 reference.md 或 scripts/build.ts,但 P07 不自动索引或授权。Skill 只负责告诉 Agent 怎么做,不能自行扩大能力边界。load_skill 是 read effect,仍过权限和 Hook。"},
+  {q:"P07 的子 Agent 能用 load_skill 吗?会增加 task 吗?",o:["能用 load_skill,且会增加 task","能用 load_skill,但不会增加 task(递归委派仍禁止)","不能用 load_skill","两者都不能"],a:1,e:"父和子都能调用 load_skill。子工具集仍不含 task(递归委派仍禁止)。父子共享 Skill 元数据快照和路径边界,不共享对话历史。子加载正文只进子历史。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!Skill 系统你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看两级加载和名称边界":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

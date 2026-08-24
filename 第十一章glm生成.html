@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 11 章 · API 韧性即生命</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  /* recovery sim */
+  .rec{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .rec-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+  .rpick{cursor:pointer;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:.8rem;transition:.15s}.rpick:hover{border-color:var(--accent)}.rpick.sel{border-color:var(--accent);background:rgba(124,156,255,.1)}
+  .rpick .pn{font-weight:700;color:var(--accent);font-family:monospace}.rpick .pd{color:var(--muted);font-size:.72rem;margin-top:2px}
+  .rec-flow{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:monospace;font-size:.8rem;min-height:120px;line-height:1.7}
+  .rec-flow .step{padding:3px 0}.rec-flow .step b{color:var(--accent)}.rec-flow .step.ok{color:var(--ok)}.rec-flow .step.bad{color:var(--bad)}.rec-flow .step.warn{color:var(--warn)}.rec-flow .step.dim{color:var(--faint)}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 11 章</span>
+  <span class="title">API 韧性即生命 <span class="muted">· Agent架构实操十一</span></span>
+  <nav><a href="#concepts">概念</a><a href="#sim">恢复路径演示</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>API 韧性即生命:决定 Agent 商业化成败的隐藏细节</h1>
+    <div class="sub">凌晨两点跑了三小时的任务挂了——529 overloaded,没重试没恢复直接崩。问题不是 API 会不会出错,而是 Agent 能否在明确边界内恢复。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 15 分钟</span>
+      <span class="pill">🔧 三种故障三条路</span>
+      <span class="pill">⏱ 退避+fallback+deadline</span>
+      <span class="pill">+recovery</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>三种故障(输出截断/输入过长/瞬态)的信号和恢复动作分别是什么?</li>
+        <li>为什么禁止匹配异常文本(如 "429" in str)?改用什么?</li>
+        <li>finishReason==="length" 等于输入过长吗?怎么恢复?</li>
+        <li>529 连续几次切 fallback?429 的 Retry-After 怎么处理?</li>
+        <li>恢复层为什么不重新进入外层 Loop?一次重试算几个 turn?</li>
+        <li>哪些错误原样失败不重试?为什么?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 三种故障,三条路 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>故障</th><th>供应商无关信号</th><th>恢复动作</th></tr><tr><td>输出被截断</td><td>finishReason==="length"</td><td>首次提升输出预算(8K→64K);之后在请求窗口内续写</td></tr><tr><td>输入上下文过长</td><td>ModelPromptTooLongError</td><td>保留当前 system prompt,响应式压缩请求快照一次</td></tr><tr><td>临时故障</td><td>ModelRateLimitError/ModelOverloadedError</td><td>遵守 Retry-After 或指数退避;连续3次529后切 fallback</td></tr></table>
+        <p>三条路径统一在 RecoveryManager.complete()。恢复层不重新进入外层 Loop,一次 API 重试不被计成新 turn。</p>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 先归一化错误,禁止匹配异常文本 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>原文用 <code>"429" in str(exc)</code>、<code>"prompt" in str(exc)</code> 判断,会把业务错误/代理页文本/程序异常误判成可重试。适配器只读 OpenAI SDK 稳定结构:status/error/headers/requestID。</p>
+        <p>分类规则显式:429→ModelRateLimitError(带 Retry-After);529→ModelOverloadedError;400 且 error.code 在 PROMPT_TOO_LONG_CODES 集合→ModelPromptTooLongError。errorCode 只来自平坦 error.code/type 或最多一层 error.error.code/type,<b>不读 message,不递归搜索,不猜字符串</b>。未知 400/其他 5xx/连接错误/超时/程序错误原样传播。</p>
+        <div class="callout warn"><span class="lab">HTTP 200 也不可信</span> normalizeResponse() 在交给恢复层前逐字段验证:恰好一个 choice、role 只能 assistant、finish_reason 白名单、content 是 string|null、tool_calls 逐项完整、usage 三个计数非负整数。不符立即抛 OpenAIResponseError。</div>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 路径一:输出截断只存在于请求窗口 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>finishReason==="length" 是正常响应,不是输入过长异常。首次:把输出预算 8000→64000,<b>丢弃残缺回复</b>,重试同一请求。仍截断才续写:中间片段和续写提示只追加到 requestMessages 局部快照,不进 canonical history。</p>
+        <pre><code>requestMessages = [...requestMessages, reply.message, userMessage(CONTINUATION_PROMPT)]</code></pre>
+        <p>续写提示:"Continue exactly where you left off. Do not repeat..."。默认最多3次。最终所有文本片段按原样拼接(不补空格),工具调用完整保留。只有合并后的 assistantMessage 能进 canonical history——避免孤儿工具调用。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 路径二:输入过长只压缩一次 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>来自 ModelPromptTooLongError,不能拿 finishReason==="length" 代替。复用第8章 compactOnPromptTooLong():保留首条动态 system prompt,其后请求快照按完整消息组压缩一次。</p>
+        <p>不修改原数组:canonical history、原始 ModelRequest、调用方只读快照都不改。transcript 记录「被压缩前的请求快照」非 canonical 别名。同一逻辑请求只允许响应式压缩一次,第二次由 PromptTooLongRetryError 失败。压缩和摘要也在同一取消/总时限边界内。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 路径三:429/529/Retry-After/fallback <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>无有效 Retry-After 时默认退避:0.5s→1s→2s→4s→8s→16s→32s→32s...,每次加 0..base*25% 抖动。最多10次瞬态尝试,封顶32秒。</p>
+        <p>429 的 Retry-After 优先级更高:接受非负秒数和带时区 RFC HTTP-date。空值/负数/NaN/Infinity/坏日期/无时区抛 InvalidRetryAfterError,<b>不 sleep 不重试</b>。等待会达或越过剩余时限直接抛 RecoveryDeadlineExceeded(不先睡到超时)。</p>
+        <p>529 维护连续计数:阈值默认3,第三次更新状态并完成本次退避,下一次(第4个请求)才显式携带 fallback model。429/输入过长/成功响应都打断「连续529」。</p>
+      </div>
+    </details>
+    <details class="card"><summary>6 · 取消与总时限是恢复的一部分 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>10次退避在最大抖动下仅等待就可能超159秒,所以默认 turn 总时限300秒。CancellationToken/单调时钟/UTC时钟/sleeper/jitter 都可注入。恢复层在模型调用、退避sleep、响应式压缩外层统一竞争取消事件与剩余deadline,把 AbortSignal 传给 ModelClient 和 HistorySummarizer。</p>
+        <p>取消令牌契约:cancel() 幂等只触发一次;subscribe() 拒绝非函数;已取消时新订阅立即执行。所有耗尽路径都有 typed failure:RecoveryCancelledError/RecoveryDeadlineExceeded/RecoveryRetriesExhausted/InvalidRetryAfterError/PromptTooLongRetryError。</p>
+      </div>
+    </details>
+    <details class="card"><summary>7 · 接入唯一 Loop,不复制 Loop <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>新增窄协议 ModelRequestExecutor:beginTurn() + complete(request)。run() 在 memory turn lifecycle 后调一次 beginTurn(),每个外层模型轮只调一次 complete()。</p>
+        <div class="callout ok"><span class="lab">关键</span> 内部重试<b>不重新运行</b> UserPrompt Hook、history preparation、动态 Prompt、工具 schema 快照或 Stop Hook。P01-P10 不注入执行器仍直接调 raw ModelClient,content_filter 由 Loop 转显式失败。</div>
+        <p>summarizer 绑定 raw model 而非 RecoveryManager(否则递归:输入过长→压缩→摘要→恢复→再压缩)。memory selector/extractor、压缩摘要器、一次性 subagent 也用 raw model。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:三条恢复路径</h2>
+    <div class="sec-desc">选一种故障,看 RecoveryManager 如何按对应路径恢复。注意:输出截断不污染 canonical,输入过长只压缩一次,529 连续3次才切 fallback。</div>
+    <div class="rec">
+      <div class="rec-pick" id="picks"></div>
+      <div class="rec-flow" id="flow"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">API 韧性不是吞掉每个异常,而是让每条恢复路径有可验证的输入、状态和终止条件</div>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第十章glm生成.html"><span class="lbl">上一章</span>← 模块化</a>
+    <a class="next" href="第十二章glm生成.html"><span class="lbl">下一章</span>任务引擎 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 11 章 / 共 20 章</footer>
+<script>
+const cases=[
+  {n:"length",d:"输出截断 finishReason=length"},
+  {n:"prompt_too_long",d:"输入过长 400 context_length_exceeded"},
+  {n:"429",d:"限流 429 + Retry-After: 2"},
+  {n:"529",d:"过载 529(连续3次)"},
+  {n:"unknown_500",d:"未知 500 错误"},
+];
+let sel=0;
+const picksEl=document.getElementById("picks"),flowEl=document.getElementById("flow");
+function render(){
+  picksEl.innerHTML=cases.map((c,i)=>`<div class="rpick ${i===sel?'sel':''}" data-i="${i}"><div class="pn">${c.n}</div><div class="pd">${c.d}</div></div>`).join("");
+  const c=cases[sel];
+  let f=[];
+  if(c.n==="length"){
+    f.push('<div class="step">📥 请求发出 → 模型返回 finishReason=<b>length</b>(输出被截断)</div>');
+    f.push('<div class="step warn">⚙️ 首次:输出预算 8000 → 64000,<b>丢弃残缺回复</b>,重试同一请求</div>');
+    f.push('<div class="step">📥 仍截断?进入续写(最多3次 CONTINUATION_PROMPT)</div>');
+    f.push('<div class="step dim">  中间片段+续写提示只追加到 requestMessages 局部快照</div>');
+    f.push('<div class="step dim">  → <b>不进 canonical history</b>,避免孤儿工具调用</div>');
+    f.push('<div class="step ok">✅ 所有文本片段按原样拼接 → 合并后的 assistantMessage 进 canonical</div>');
+  } else if(c.n==="prompt_too_long"){
+    f.push('<div class="step">📥 请求发出 → 适配器抛 <b>ModelPromptTooLongError</b>(400 context_length_exceeded)</div>');
+    f.push('<div class="step warn">⚙️ 保留首条动态 system prompt,其后请求快照按完整消息组<b>压缩一次</b></div>');
+    f.push('<div class="step dim">  复用第8章 compactOnPromptTooLong(retryCount:0)</div>');
+    f.push('<div class="step dim">  → 不改 canonical/原始ModelRequest/调用方只读快照</div>');
+    f.push('<div class="step ok">✅ 压缩后的 request history 重新请求</div>');
+    f.push('<div class="step bad">⚠️ 第二次输入过长 → PromptTooLongRetryError 失败(只压缩一次)</div>');
+  } else if(c.n==="429"){
+    f.push('<div class="step">📥 请求发出 → 适配器抛 <b>ModelRateLimitError</b>(429)</div>');
+    f.push('<div class="step warn">⚙️ 解析 Retry-After: 2 秒(优先级高于默认退避)</div>');
+    f.push('<div class="step dim">  检查:等待2秒会越过剩余 deadline 吗?</div>');
+    f.push('<div class="step">  否 → sleep(2s + 抖动) → 重试</div>');
+    f.push('<div class="step ok">✅ 重试成功 → 打断「连续529」计数</div>');
+  } else if(c.n==="529"){
+    f.push('<div class="step">📥 请求发出 → 适配器抛 <b>ModelOverloadedError</b>(529)</div>');
+    f.push('<div class="step warn">⚙️ consecutive529=1 → 退避 0.5s+抖动 → 重试</div>');
+    f.push('<div class="step warn">⚙️ consecutive529=2 → 退避 1s+抖动 → 重试</div>');
+    f.push('<div class="step warn">⚙️ consecutive529=3 ≥ 阈值3 → currentModel 改为 fallback,计数归零</div>');
+    f.push('<div class="step dim">  完成本次退避,下一次(第4个请求)才显式携带 fallback model</div>');
+    f.push('<div class="step ok">✅ 第4个请求用 fallback model 发出</div>');
+  } else {
+    f.push('<div class="step">📥 请求发出 → 未知 500 错误</div>');
+    f.push('<div class="step bad">❌ 没有 typed signal → <b>原样失败,不重试</b></div>');
+    f.push('<div class="step dim">  未知5xx/连接重置/DNS/TLS/认证/流式中断都不重试</div>');
+    f.push('<div class="step dim">  没有明确typed signal、幂等语义和测试前,原样失败比广泛重试更安全</div>');
+  }
+  flowEl.innerHTML=f.join("");
+}
+picksEl.addEventListener("click",e=>{const p=e.target.closest(".rpick");if(p){sel=+p.dataset.i;render();}});
+render();
+
+const questions=[
+  {q:"三种故障的信号和恢复,输出截断对应?",o:["ModelPromptTooLongError→压缩","finishReason===\"length\"→首次提升输出预算8K→64K,丢弃残缺回复重试,之后续写","529→退避","429→Retry-After"],a:1,e:"length是正常响应不是输入过长异常。首次提升预算丢弃残缺重试,仍截断才续写。中间片段只追加到requestMessages局部快照不进canonical,避免孤儿工具调用。最多3次续写。"},
+  {q:"为什么禁止用 \"429\" in str(exc) 匹配异常文本?",o:["性能差","会把业务错误/代理页文本/程序异常误判成可重试故障;应读SDK稳定结构status/error/headers分类","字符串太长","OpenAI不允许"],a:1,e:"适配器只读APIError.status/error/headers/requestID。errorCode只来自平坦error.code/type或最多一层error.error.code/type,不读message不递归不猜字符串。未知错误原样传播。"},
+  {q:"finishReason===\"length\" 等于输入过长吗?",o:["是,都压缩","否:length是输出达上限(请求已接受);输入过长是ModelPromptTooLongError(输入被拒)。两者信号和恢复完全不同","是,都重试","取决于供应商"],a:1,e:"length→提升预算+续写(请求窗口内)。prompt_too_long→响应式压缩请求快照一次(保留system prompt)。不能拿length代替输入过长,也不能靠异常字符串含prompt_too_long冒充。"},
+  {q:"529 连续几次切 fallback?切完后呢?",o:["1次立即切","3次。第三次更新状态currentModel=fallback并完成本次退避,下一次(第4个请求)才显式携带fallback model","5次","10次"],a:1,e:"阈值默认3。consecutive529到3更新状态计数归零,完成本次退避,下一次请求才用fallback。429/输入过长/成功响应都打断连续529计数。"},
+  {q:"429 的 Retry-After 是坏日期(无时区)时怎么办?",o:["当0秒处理","抛InvalidRetryAfterError,不sleep不重试","默认2秒","重试3次"],a:1,e:"接受非负秒数和带时区RFC HTTP-date。空值/负数/NaN/Infinity/坏日期/无时区日期抛InvalidRetryAfterError,不sleep不重试。等待会达或越过剩余时限直接抛RecoveryDeadlineExceeded(不先睡到超时)。"},
+  {q:"恢复层的一次 API 重试算几个 Agent turn?",o:["1个新turn","0个:恢复层不重新进入外层Loop,内部重试不重新运行Hook/动态Prompt/工具schema快照/Stop Hook","取决于重试次数","2个"],a:1,e:"新增窄协议ModelRequestExecutor:beginTurn()+complete()。run()每外层轮只调一次complete()。内部重试不重新运行UserPrompt Hook、history preparation、动态Prompt、工具schema快照或Stop Hook。"},
+  {q:"哪些错误原样失败不重试?",o:["所有5xx","未知5xx/连接重置/DNS/TLS/认证/流式中断;没有明确typed signal、幂等语义和测试前原样失败比广泛重试更安全","429和529","所有错误"],a:1,e:"当前实现有意不重试未知5xx、连接重置、DNS、TLS、认证和流式中断。所有耗尽路径有typed failure:RecoveryCancelledError/RecoveryDeadlineExceeded/RecoveryRetriesExhausted/InvalidRetryAfterError/PromptTooLongRetryError。"},
+  {q:"为什么 summarizer 绑定 raw model 而非 RecoveryManager?",o:["性能","否则路径变成输入过长→压缩→摘要→恢复→再压缩的递归","OpenAI要求","避免缓存"],a:1,e:"Bootstrap复用同一CompactionManager处理主动和响应式压缩,但ModelHistorySummarizer绑定raw model。memory selector/extractor、压缩摘要器、一次性subagent也用raw model,给它们增加独立恢复状态需新会话所有权契约,不能共享主Agent的RecoveryState。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!API韧性你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看三条路径和退避":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

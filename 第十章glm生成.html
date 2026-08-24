@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 10 章 · 从一锅炖到模块化</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  /* prompt sim */
+  .pp{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .pp-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .toggle{cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);font-size:.78rem;transition:.15s}.toggle:hover{border-color:var(--accent)}.toggle.on{border-color:var(--accent);background:rgba(124,156,255,.12);color:var(--accent)}
+  .pp-out{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:monospace;font-size:.8rem;white-space:pre-wrap;line-height:1.6;min-height:200px}
+  .pp-sec{margin:6px 0}.pp-sec .h{color:var(--accent);font-weight:700}.pp-sec .v{color:var(--text)}.pp-sec.opt{color:var(--teal)}.pp-sec.none{color:var(--faint)}
+  .pp-stat{margin-top:10px;font-size:.8rem;color:var(--muted)}.pp-stat b{color:var(--ok)}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 10 章</span>
+  <span class="title">从一锅炖到模块化 <span class="muted">· Agent架构实操十</span></span>
+  <nav><a href="#concepts">概念</a><a href="#sim">动态 Prompt 演示</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>从「一锅炖」到「模块化」:重塑 Agent 的逻辑骨架</h1>
+    <div class="sub">到第 9 章,system prompt 是一大段没人敢改的硬编码字符串——和把数据库连接串写死在业务逻辑里是同一类错误。本章:固定顺序、运行态取值,五个 section。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 12 分钟</span>
+      <span class="pill">🧩 5 个 section</span>
+      <span class="pill">💾 会话级缓存</span>
+      <span class="pill">+dynamic_prompt</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>硬编码 system prompt 的三个痛点是什么?</li>
+        <li>五个 section 的固定顺序?哪些始终有、哪些按需?</li>
+        <li>Context 为什么必须是严格 JSON?为什么不能用 default=str?</li>
+        <li>缓存为什么必须属于会话(实例字段)而非模块全局?</li>
+        <li>第 10 章为什么要把 MemorySession 的消息注入关掉?</li>
+        <li>动态 Prompt 的缓存命中 = 供应商 API prompt cache 命中吗?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 三个痛点:硬编码 prompt 的问题 <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol><li><b>换项目要重写整个 prompt,不知道哪些该改</b>:身份/行为规范可能复用,但工作目录/工具变了,边界完全不可见。</li><li><b>改一处悄悄影响全局</b>:加段工具描述可能和行为规范语义冲突,LLM 怎么理解不可预测,不报错只变奇怪。</li><li><b>每次请求带全部内容但不是每次都需要</b>:记忆只在选中相关记录时有意义,没选中保留占位说明只引入噪音。</li></ol>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 解法:固定顺序,运行态取值 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>Section</th><th>策略</th><th>来源</th></tr><tr><td>identity</td><td>始终</td><td>基础行为指令 + 规范化 JSON context</td></tr><tr><td>tools</td><td>始终</td><td>ToolRegistry.names 当前快照</td></tr><tr><td>workspace</td><td>始终</td><td>已解析的 workspace 路径</td></tr><tr><td>skills</td><td>按需</td><td>SkillRegistry 有界目录(不含正文)</td></tr><tr><td>memory</td><td>按需</td><td>MemorySession 本轮选中记忆正文</td></tr></table>
+        <p>顺序是契约:<code>identity → tools → workspace → skills → memory</code>。没工具时 tools 显示 (none);没 Skill/选中记忆时对应 section 整段省略。</p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · Context 必须是严格 JSON <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>Context 放章节号、identity、运行模式等小型结构化状态。缓存键和展示文本都来自同一份规范 JSON,不能用 default=str 把未知对象悄悄变字符串。</p>
+        <p>只接受 JSON object,值递归限制为 scalar/array/object。拒绝 array 外的非普通对象、symbol key、NaN、±Infinity、循环引用。合法值按 key 排序+紧凑 JSON+UTF-8 字符规范序列化——键插入顺序不同但语义相同得到同一 key。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 缓存必须属于会话 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>旧写法把 lastContextKey/lastPrompt 放模块全局,两 Agent 实例同进程会共享,把一个 workspace 的 Prompt 复用给另一个会话。</p>
+        <p>DynamicPromptRenderer 把缓存放实例字段。每次 buildAgent(P10) 新建 renderer,缓存天然会话隔离。缓存键覆盖全部可见输入:identity+context+tools+workspace+skills+selected memory,全部相等才复用并 cacheHits++。</p>
+        <div class="callout warn"><span class="lab">注意</span> 这只是进程内避免重复组装字符串的缓存,<b>不等价于</b>供应商 API 的 prompt cache。当前 OpenAI 适配器没把静态/动态 section 分成不同 cache-control block,不能宣称动态内容变化时仍命中 API 级静态前缀缓存。</div>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 零参数 Provider 接入唯一 Loop <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>AgentRunner 不该知道 Prompt 每个数据源,只依赖零参数 provider:每次模型请求前调 render() 获当下 Prompt。DynamicPromptProvider 在构建阶段绑定 renderer 和运行态对象。</p>
+        <p>AgentRunner.#renderSystemPrompt() 对返回值做类型与空值校验:返回空串或非字符串立即抛错,<b>不回退</b>到构建期固定 systemPrompt,避免静默用过期指令。</p>
+      </div>
+    </details>
+    <details class="card"><summary>6 · 记忆只注入一次 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>第 9 章 MemorySession.beforeModel() 额外返回一条 system context 消息。到第 10 章 selected memory 已进动态 Prompt 的 memory section;若原路径还开,同一正文出现两次。</p>
+        <p>Bootstrap 显式切换所有权:<code>createMemorySession(dependencies, !dynamicPrompt)</code>。P09 没动态 prompt 能力时仍启用消息注入,P10 才关闭。生命周期仍负责选择/提取/整理,只关独立消息注入。测试直接统计 <code>&lt;relevant_memories&gt;</code> 出现次数。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:动态 Prompt 渲染</h2>
+    <div class="sec-desc">开关 skills/memory,看五个 section 如何按固定顺序组装,可选 section 按需出现/省略。</div>
+    <div class="pp">
+      <div class="pp-ctrl">
+        <span style="font-size:.82rem">切换:</span>
+        <div class="toggle on" data-k="skills">skills 目录(有)</div>
+        <div class="toggle on" data-k="memory">选中记忆(有)</div>
+        <div class="toggle on" data-k="tools">tools(有)</div>
+      </div>
+      <div class="pp-out" id="out"></div>
+      <div class="pp-stat" id="stat"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">Prompt 只负责渲染,不重新实现工具发现、记忆选择或路径校验——各 section 唯一来源</div>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第九章glm生成.html"><span class="lbl">上一章</span>← 文件级持久化</a>
+    <a class="next" href="第十一章glm生成.html"><span class="lbl">下一章</span>API 韧性 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 10 章 / 共 20 章</footer>
+<script>
+const flags={skills:true,memory:true,tools:true};
+const ctrls=document.getElementById("out").parentElement.querySelector(".pp-ctrl"),out=document.getElementById("out"),stat=document.getElementById("stat");
+ctrls.addEventListener("click",e=>{const t=e.target.closest(".toggle");if(!t)return;flags[t.dataset.k]=!flags[t.dataset.k];t.classList.toggle("on",flags[t.dataset.k]);render();});
+function render(){
+  let s="";
+  s+=`<div class="pp-sec"><span class="h">## identity</span>\n<span class="v">You are a coding agent. Use tools when needed.</span>\n<span class="v">context: {"chapter":10,"identity":"user"}</span></div>\n\n`;
+  s+=flags.tools?`<div class="pp-sec"><span class="h">## tools</span>\n<span class="v">shell, read_file, write_file, edit_file, glob, todo_write, task, load_skill</span></div>\n\n`:`<div class="pp-sec none"><span class="h">## tools</span>\n(none)</div>\n\n`;
+  s+=`<div class="pp-sec"><span class="h">## workspace</span>\n<span class="v">D:\\proj</span></div>\n\n`;
+  if(flags.skills)s+=`<div class="pp-sec opt"><span class="h">## skills</span>\n<span class="v">- typescript-style: Use when 编写/审查 TS...\n- sql-style: Use when 编写 SQL...</span></div>\n\n`;
+  if(flags.memory)s+=`<div class="pp-sec opt"><span class="h">## memory</span>\n&lt;relevant_memories&gt;\nuser-prefers-tabs: Use tabs in this repository.\n&lt;/relevant_memories&gt;</div>\n\n`;
+  out.textContent=s.trim();
+  const secs=3+(flags.skills?1:0)+(flags.memory?1:0);
+  stat.innerHTML=`渲染 section 数:<b>${secs}</b> · 顺序固定:identity→tools→workspace→skills→memory · 可选 section 按需出现`;
+}
+render();
+
+const questions=[
+  {q:"硬编码 system prompt 的三个痛点不包括?",o:["换项目要重写整个 prompt 不知改哪","改一处悄悄影响全局不报错只变奇怪","每次请求带全部内容但不是每次都需要","Token 数自动减少"],a:3,e:"三个痛点:换项目要重写不知改哪、改一处悄悄影响全局、每次带全部但不是每次需要。本质是把配置藏在代码里,和数据库连接串写死业务逻辑同一类错误。"},
+  {q:"五个 section 的固定顺序是?",o:["tools→identity→memory→workspace→skills","identity→tools→workspace→skills→memory","memory→skills→workspace→tools→identity","随机"],a:1,e:"顺序是契约:identity→tools→workspace→skills→memory。前三个始终有(tools没工具显示none),skills和memory按需,有时追加到尾部没有时整段省略。"},
+  {q:"Context 为什么必须是严格 JSON,不能用 default=str?",o:["性能","缓存键和展示文本都来自同一份规范 JSON,不能用default=str把未知对象悄悄变字符串","OpenAI要求","节省token"],a:1,e:"只接受JSON object,值递归限制scalar/array/object。拒绝array外非普通对象、symbol key、NaN、±Infinity、循环引用。合法值按key排序+紧凑JSON序列化,键顺序不同语义相同得到同一key。"},
+  {q:"缓存为什么必须属于会话(实例字段)而非模块全局?",o:["性能","否则两Agent实例同进程共享,把一个workspace的Prompt复用给另一个会话","TypeScript要求","内存管理"],a:1,e:"旧写法lastContextKey/lastPrompt放模块全局会跨实例共享。DynamicPromptRenderer把缓存放实例字段,每次buildAgent新建renderer天然会话隔离。缓存键覆盖全部可见输入,全等才复用。"},
+  {q:"第10章为什么要把 MemorySession 的消息注入关掉?",o:["不需要记忆了","selected memory已进动态Prompt的memory section,若原路径还开同一正文出现两次","性能问题","会破坏配对"],a:1,e:"createMemorySession(dependencies, !dynamicPrompt)。P09没动态prompt能力时仍启用消息注入,P10才关闭。生命周期仍负责选择/提取/整理,只关独立消息注入。测试直接统计<relevant_memories>出现次数。"},
+  {q:"动态 Prompt 的 renderer 缓存命中 = 供应商 API prompt cache 命中吗?",o:["是,完全等价","否:renderer缓存只是进程内避免重复组装字符串;当前适配器没把静态/动态section分成不同cache-control block,不能宣称命中API级静态前缀缓存","是,都是缓存","取决于供应商"],a:1,e:"renderer实例缓存不等价于供应商API prompt cache。CC会区分静态/动态section(SYSTEM_PROMPT_DYNAMIC_BOUNDARY),P10没有静态/动态边界,也没必须绕过缓存的section。"},
+  {q:"AgentRunner 对 provider 返回空字符串/非字符串会怎样?",o:["回退到构建期固定systemPrompt","立即抛错,不回退,避免静默用过期指令","忽略继续","用空prompt请求"],a:1,e:"#renderSystemPrompt做类型与空值校验,返回空串或非字符串立即抛错,不回退到构建期固定systemPrompt。这避免静默使用过期指令。"},
+  {q:"「运行态变化下一轮生效」的真实边界?",o:["磁盘新增Skill立即生效","ToolRegistry名称和MemorySession.selected会被重新读取;workspace用绑定路径;Skill目录来自构建时扫描,磁盘新增需重建Agent","所有都立即生效","只有memory立即生效"],a:1,e:"当前实现不会悄悄监视目录。ToolRegistry当前名称和MemorySession.selected重新读取,workspace用绑定路径,Skill目录来自构建时SkillRegistry扫描。磁盘新增Skill需重建Agent由新构建重新扫描。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!模块化Prompt你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看五section和缓存":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

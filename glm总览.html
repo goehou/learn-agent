@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent 架构实操 20 章 · GLM 总览</title>
+<style>
+  :root{
+    --bg:#0f1117; --surface:#1a1d27; --surface2:#232733; --border:#2e3340;
+    --text:#e6e8ee; --muted:#9aa0ac; --faint:#6b7280;
+    --accent:#7c9cff; --accent2:#b07cff; --teal:#5ec8b6;
+    --ok:#4ade80; --bad:#f87171; --warn:#fbbf24;
+  }
+  *{box-sizing:border-box} html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:16px}
+  a{color:var(--accent);text-decoration:none}
+
+  /* hero header */
+  .header{background:linear-gradient(135deg,rgba(124,156,255,.12),rgba(176,124,255,.12));border-bottom:1px solid var(--border);padding:48px 20px 36px;text-align:center}
+  .header h1{margin:0 0 8px;font-size:2rem;letter-spacing:-.01em;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .header .sub{color:var(--muted);font-size:1rem;margin:0 auto 18px;max-width:640px}
+  .header .stats{display:flex;justify-content:center;gap:24px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+  .header .stats b{color:var(--text);font-size:1.3rem;display:block;font-weight:700}
+
+  /* filter bar */
+  .toolbar{position:sticky;top:0;z-index:40;background:rgba(15,17,23,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:1100px;margin:0 auto}
+  .search{flex:1;min-width:200px;padding:9px 14px;background:var(--surface);border:1px solid var(--border);border-radius:999px;color:var(--text);font-size:.88rem}
+  .search:focus{outline:none;border-color:var(--accent)}
+  .filter{cursor:pointer;padding:6px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--muted);font-size:.8rem;transition:.15s}
+  .filter:hover{border-color:var(--accent);color:var(--text)}
+  .filter.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none;font-weight:600}
+  .progress-info{font-size:.8rem;color:var(--muted);white-space:nowrap}
+
+  /* grid */
+  main{max-width:1100px;margin:0 auto;padding:24px 20px 80px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px;transition:.2s;display:flex;flex-direction:column;position:relative;overflow:hidden}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .card .num{font-family:"JetBrains Mono",Consolas,monospace;font-size:.78rem;color:var(--accent);font-weight:700;margin-bottom:6px}
+  .card h3{margin:0 0 8px;font-size:1.02rem;line-height:1.35;color:var(--text)}
+  .card .desc{color:var(--muted);font-size:.84rem;margin:0 0 12px;flex:1}
+  .card .tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+  .tag{font-size:.68rem;padding:2px 8px;border-radius:999px;background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  .tag.cap{color:var(--teal);border-color:rgba(94,200,182,.3)}
+  .card .foot{display:flex;align-items:center;justify-content:space-between;margin-top:auto}
+  .card .go{color:var(--accent);font-size:.82rem;font-weight:600}
+  .card .go:hover{text-decoration:underline}
+  .card .done-mark{font-size:.72rem;color:var(--ok);cursor:pointer;user-select:none}
+  .card .done-mark.done{color:var(--ok)}
+  .card .done-mark.notdone{color:var(--faint)}
+
+  .empty{text-align:center;padding:40px;color:var(--faint)}
+
+  footer{color:var(--faint);font-size:.82rem;text-align:center;padding:30px 20px;border-top:1px solid var(--border)}
+  footer a{color:var(--muted)}
+
+  @media(max-width:640px){.header h1{font-size:1.5rem}.header .stats{gap:16px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Agent 架构实操 · GLM 总览</h1>
+  <p class="sub">20 章从零搭建生产级 AI Agent。每章含核心概念卡 + 专属交互演示 + 8 题 QA 测验。单文件零依赖,双击即开。</p>
+  <div class="stats">
+    <div><b>20</b>章节</div>
+    <div><b>20</b>交互演示</div>
+    <div><b>160</b>道测验题</div>
+    <div><b>0</b>依赖</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <input class="search" id="search" placeholder="🔍 搜索章节标题、关键词、能力...">
+  <div id="filters" style="display:flex;gap:6px;flex-wrap:wrap">
+    <div class="filter on" data-f="all">全部</div>
+    <div class="filter" data-f="core">基础(1-4)</div>
+    <div class="filter" data-f="ctx">上下文(5-10)</div>
+    <div class="filter" data-f="infra">基础设施(11-14)</div>
+    <div class="filter" data-f="team">协作(15-18)</div>
+    <div class="filter" data-f="ext">扩展(19-20)</div>
+  </div>
+  <span class="progress-info" id="progress">已完成 0 / 20</span>
+</div>
+
+<main>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">没有匹配的章节</div>
+</main>
+
+<footer>
+  Agent 架构实操系列 · 交互学习版 · 共 20 章<br>
+  基于仓库 <a href="#">learn-agent</a> 文档生成 · 单文件 HTML · 离线可用
+</footer>
+
+<script>
+const chapters=[
+  {n:1,file:"第一章glm生成.html",title:"Agent Loop:一个循环,就是模型与真实世界之间的全部距离",desc:"不画架构框图,只看代码。整章只讲一个核心:让模型和真实世界之间那个「人工搬运结果」的中间层自动化。",tags:["Loop","maxTurns","tool_calls 信号","shell"],cap:"loop+powershell",cat:"core"},
+  {n:2,file:"第二章glm生成.html",title:"给 Agent 加一个工具,只需要加一行",desc:"只有 shell 不够。本章加四个专用文件工具,而 Agent Loop 一行都不用改——ToolRegistry 负责分发。",tags:["ToolRegistry","Zod","safePath","完整快照"],cap:"tool_registry+files",cat:"core"},
+  {n:3,file:"第三章glm生成.html",title:"深度拆解复刻 Claude Code 权限系统",desc:"把安全委托给概率模型是错的。权限策略必须在代码里,且位置固定:副作用发生前的确定性边界。",tags:["四态决定","deny 优先","fail closed","工作区硬边界"],cap:"policy",cat:"core"},
+  {n:4,file:"第四章glm生成.html",title:"顶级 AI Agent 是如何利用 Hook 解耦的",desc:"循环从几十行膨胀到两百行,问题在扩展行为和核心编排没分开。Hook = 固定位置发布结构化上下文。",tags:["4 类事件","HookResult","注册顺序","Stop 续跑"],cap:"hooks",cat:"core"},
+  {n:5,file:"第五章glm生成.html",title:"为什么上下文越长,系统提示词越没用?",desc:"十步重构第三步被报错占住注意力,最初计划只出现一次却要和大量局部信息竞争。会话级 todo_write。",tags:["完整快照","Nag 提醒","trim+min(1)","会话隔离"],cap:"todo",cat:"ctx"},
+  {n:6,file:"第六章glm生成.html",title:"从「单兵死磕」到「分身协作」",desc:"追深调用链 bug 时几十轮工具结果塞满历史。把自包含子任务交给一次性 Subagent,从全新历史探索。",tags:["task 工具","历史隔离","禁止递归","30 轮上限"],cap:"subagent",cat:"ctx"},
+  {n:7,file:"第七章glm生成.html",title:"别再硬塞 Prompt 了!工业级 Skill 技能系统",desc:"三份文档几千行全塞 System Prompt 是把配置藏代码里。两级加载:目录进 Prompt,正文按需 load_skill。",tags:["两级加载","Use when/Don't","名称≠路径","KV Cache"],cap:"skills",cat:"ctx"},
+  {n:8,file:"第八章glm生成.html",title:"如何用「四级压缩法」干掉上下文膨胀?",desc:"加大窗口只能推迟问题。管理信息生命周期:大结果落盘、snip 裁中段、micro 降级、模型摘要。先便宜后昂贵。",tags:["4 级管线","消息原子组","50K 阈值","transcript"],cap:"artifacts+compaction",cat:"ctx"},
+  {n:9,file:"第九章glm生成.html",title:"从上下文压缩到文件级持久化",desc:"「用 tab 不用空格」压缩后变「用户有代码风格偏好」。LLM 没有持久状态,需要一层不参与压缩的跨会话存储。",tags:[".memory/","manifest 唯一权威","跨进程锁","原子提交"],cap:"memory",cat:"ctx"},
+  {n:10,file:"第十章glm生成.html",title:"从「一锅炖」到「模块化」:重塑逻辑骨架",desc:"system prompt 是没人敢改的硬编码字符串。固定顺序、运行态取值,五个 section 按需组装。",tags:["5 section","严格 JSON context","会话级缓存","记忆只注入一次"],cap:"dynamic_prompt",cat:"ctx"},
+  {n:11,file:"第十一章glm生成.html",title:"API 韧性即生命:决定商业化成败的隐藏细节",desc:"凌晨两点跑了三小时的任务挂了——529 没重试直接崩。三种故障三条路,每条有可验证的输入、状态和终止条件。",tags:["length 续写","prompt_too_long 压缩","429/529 退避","fallback"],cap:"recovery",cat:"infra"},
+  {n:12,file:"第十二章glm生成.html",title:"5 个工具、3 个状态,撸出生产级任务引擎",desc:"真正麻烦的不是列「建库表、写接口」,而是:哪些任务现在可以开始?谁认领了?进程退出后能否原样恢复?",tags:["JSON Task DAG","3 状态无 blocked","整图锁","单向推进"],cap:"task_dag_json",cat:"infra"},
+  {n:13,file:"第十三章glm生成.html",title:"从串行到异步:慢操作填坑指南",desc:"npm install 要几分钟,Agent 像被暂停。后台化让工具先返回占位,完成后通过 typed event 回到同一 Loop。",tags:["后台 job","EventInbox","三态参数","权限后才提交"],cap:"background",cat:"infra"},
+  {n:14,file:"第十四章glm生成.html",title:"让 Agent 学会看表:Cron 调度器的设计与实现",desc:"所有操作仍是人触发的,「每天9点跑测试」没人推就不动。触发权从「人→Agent」变成「Scheduler→Agent」。",tags:["schedule_cron","durable outbox","5 必填字段","不绕过 Loop"],cap:"cron",cat:"infra"},
+  {n:15,file:"第十五章glm生成.html",title:"解密 Claude Code 协作机制:Inbox 注入异步通信",desc:"一次性子 Agent 是「一问一答」,但有些工作需保留历史、接收补充、异步汇报、完成后继续存在。持续 Teammate。",tags:["spawn_teammate","每消息一文件","ready→processing→done","崩溃窗口"],cap:"teammate+mailbox",cat:"team"},
+  {n:16,file:"第十六章glm生成.html",title:"从「单兵作战」到「自组织团队」",desc:"普通 task/message/result 只表达内容,不表达「这条回复解决哪个请求」。协议:先登记、稳定 ID、严格匹配。",tags:["ProtocolRequest","plan_gate 硬门控","先登记再发送","5 分钟窗口"],cap:"protocol+plan_gate",cat:"team"},
+  {n:17,file:"第十七章glm生成.html",title:"从「人肉派发」到「自驱轮询」:去中心化协作",desc:"10 个任务手动发 10 次勉强,有依赖就得盯着谁完成、谁解锁。空闲时从共享任务板找到当前可做的工作。",tags:["SQLite BEGIN IMMEDIATE","work stealing","TOCTOU","claim token+lease"],cap:"task_dag_sqlite+work_stealing",cat:"team"},
+  {n:18,file:"第十八章glm生成.html",title:"AI Agent 也会「抢地盘」?文件冲突怎么解",desc:"任务所有权≠文件系统隔离。两人都 write_file 同名文件后写者覆盖前写者。Git Worktree 物理目录隔离。",tags:["Git Worktree","三条状态线","Binding 状态机","needs_review"],cap:"worktree",cat:"team"},
+  {n:19,file:"第十九章glm生成.html",title:"从静态工具到动态工具池:一次 MCP 接入重构架构",desc:"启动时工具全写死。接文档服务要写一组 schema/handler,接部署服务又重复。用官方 MCP SDK 动态发现远程工具。",tags:["MCP SDK","Published≠Exposed","动态注册/撤销","前缀防串线"],cap:"mcp",cat:"ext"},
+  {n:20,file:"第二十章glm生成.html",title:"Agent 架构设计:工具调用、权限、记忆、压缩与 MCP 集成",desc:"不发明「终极框架」,不复制第二套 Loop。把已实现的能力接到同一组合根,用跨功能场景证明边界同时成立。",tags:["full_harness","边界一致","逆序 close","单一循环"],cap:"full_harness",cat:"ext"},
+];
+
+const STORAGE_KEY="agent-tutorial-progress";
+let done=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
+let curFilter="all", curSearch="";
+
+const grid=document.getElementById("grid"),empty=document.getElementById("empty"),progressEl=document.getElementById("progress"),searchEl=document.getElementById("search"),filtersEl=document.getElementById("filters");
+
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
+
+function render(){
+  const q=curSearch.toLowerCase();
+  const list=chapters.filter(c=>{
+    if(curFilter!=="all"&&c.cat!==curFilter)return false;
+    if(q){
+      const hay=(c.title+c.desc+c.tags.join(" ")+c.cap).toLowerCase();
+      if(!hay.includes(q))return false;
+    }
+    return true;
+  });
+  grid.innerHTML=list.map(c=>{
+    const isDone=done[c.n]?"done":"notdone";
+    return `<div class="card">
+      <div class="num">第 ${c.n} 章 · P${String(c.n).padStart(2,"0")}</div>
+      <h3>${escapeHtml(c.title)}</h3>
+      <p class="desc">${escapeHtml(c.desc)}</p>
+      <div class="tags">${c.tags.map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join("")}<span class="tag cap">+${escapeHtml(c.cap)}</span></div>
+      <div class="foot">
+        <a class="go" href="${c.file}">进入学习 →</a>
+        <span class="done-mark ${isDone}" data-n="${c.n}">${done[c.n]?"✓ 已完成":"○ 标记完成"}</span>
+      </div>
+    </div>`;
+  }).join("");
+  empty.style.display=list.length?"none":"block";
+  const doneCount=Object.keys(done).filter(k=>done[k]).length;
+  progressEl.textContent=`已完成 ${doneCount} / 20`;
+}
+
+grid.addEventListener("click",e=>{
+  const m=e.target.closest(".done-mark");
+  if(!m)return;
+  const n=+m.dataset.n;
+  done[n]=!done[n];
+  if(!done[n])delete done[n];
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(done));
+  render();
+});
+
+filtersEl.addEventListener("click",e=>{
+  const f=e.target.closest(".filter");if(!f)return;
+  curFilter=f.dataset.f;
+  filtersEl.querySelectorAll(".filter").forEach(x=>x.classList.toggle("on",x===f));
+  render();
+});
+
+searchEl.addEventListener("input",e=>{curSearch=e.target.value;render();});
+
+render();
+</script>
+</body>
+</html>

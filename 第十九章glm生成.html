@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 19 章 · 从静态工具到动态工具池 MCP</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  .mcp-sim{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .mcp-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .mcp-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .mcp-box{border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--surface2);min-height:120px}
+  .mcp-box h4{margin:0 0 6px;font-size:.78rem;color:var(--muted)}
+  .mcp-tool{padding:5px 8px;border-radius:5px;margin:3px 0;font-size:.76rem;font-family:monospace;background:var(--code-bg);border:1px solid var(--border);display:flex;align-items:center;gap:6px}
+  .mcp-tool .nm{color:var(--accent);font-weight:700}.mcp-tool .st{font-size:.66rem;color:var(--faint);margin-left:auto}
+  .mcp-tool.published{opacity:.5;border-style:dashed}.mcp-tool.exposed{border-color:var(--ok)}
+  .mcp-state{margin-top:12px;padding:10px;border-radius:8px;background:var(--code-bg);font-size:.8rem;font-family:monospace}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+  @media(max-width:640px){.mcp-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 19 章</span>
+  <span class="title">从静态工具到动态工具池 MCP <span class="muted">· Agent架构实操十九</span></span>
+  <nav><a href="#concepts">概念</a><a href="#sim">MCP 演示</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>从静态工具到动态工具池:一次 MCP 接入重构了 Agent 架构</h1>
+    <div class="sub">启动时工具全写死在注册表。接文档服务要写一组 schema/handler,接部署服务又重复。本章用官方 MCP TypeScript SDK 连接本地 allowlist 的 stdio server,发现远程工具,验证后动态发布给 Lead,故障时原子撤销。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 15 分钟</span>
+      <span class="pill">🔌 connect/disconnect_mcp</span>
+      <span class="pill">⚡ 动态注册/撤销</span>
+      <span class="pill">+MCP</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>六个术语(Alias/Connection/Published Tool/Policy/Exposed Tool/Snapshot)各回答什么?最关键的区分是?</li>
+        <li>进程内 handler dict 算 MCP 吗?缺什么?</li>
+        <li>Published 和 Exposed 的区别?server 说只读就只读吗?</li>
+        <li>connect_mcp 回复里调用新工具会怎样?第几次请求才看到?</li>
+        <li>断开 alpha 后,beta 的工具会受影响吗?</li>
+        <li>Subagent 和 Teammate 能看到 MCP 管理工具和远程工具吗?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 六个术语 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>术语</th><th>回答的问题</th><th>是否可信</th></tr><tr><td>MCP Server Alias</td><td>本地 allowlist 用哪个稳定名字代表 server</td><td>本地可信</td></tr><tr><td>MCP Connection</td><td>这个 alias 当前是否有已初始化且存活的协议会话</td><td>运行时状态</td></tr><tr><td>Published MCP Tool</td><td>server 通过 tools/list 发布了什么名称/描述/schema</td><td>外部数据</td></tr><tr><td>MCP Tool Policy</td><td>本地如何给某个远程工具指定 effect</td><td>本地可信</td></tr><tr><td>Exposed MCP Tool</td><td>远程声明经验证后本地真正暴露什么</td><td>本地能力</td></tr><tr><td>Registry Snapshot</td><td>一次模型请求及其回复共同使用哪一版工具集合</td><td>不可变快照</td></tr></table>
+        <div class="callout bad"><span class="lab">最关键区分:Published vs Exposed</span> server 说「我有一个只读工具」只是发布外部数据。只有本地 allowlist 为这个精确工具名配置了 effect,schema 和名称也通过验证,才成为可执行的 Exposed MCP Tool。</div>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 进程内 handler dict 不是 MCP <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>旧版做 MCPClient 放 dict[str, callable],tools/call 只是字典取函数。这没证明任何 MCP 行为:没有 transport、没有官方 Client 与 StdioClientTransport、没有 initialize、没有 tools/list 分页、没有 tools/call、没有子进程退出/超时/取消/关闭语义,server 实现和 Agent 同进程。</p>
+        <p>P19 直接用锁文件中的 @modelcontextprotocol/sdk,传输路径:McpServerSpec → StdioClientTransport → Client.connect(initialize) → Client.listTools(分页) → Client.callTool。演示 server 也是独立 TypeScript 子进程,真启动两进程通过 stdin/stdout 交换 MCP 消息。</p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 动态注册与原子撤销 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>连接 demo_alpha 和 demo_beta(都发布 lookup),本地工具名变成 <code>mcp__demo_alpha__lookup</code> 和 <code>mcp__demo_beta__lookup</code>(前缀防同名串线)。</p>
+        <div class="callout warn"><span class="lab">下一次请求才可见</span> connect_mcp 所在回复里若提前调用新工具,该调用稳定得到 unknown_tool。<b>下一次模型请求</b>才看到新工具。Registry Snapshot 是不可变快照,一次请求和回复共用同一版工具集合。</div>
+        <p>断开 alpha 后<b>只撤销 alpha 的全部定义</b>,beta 仍可调用(原子撤销,不影响其他 connection)。超时或子进程退出会撤销该 alias 的全部工具。Runner 关闭后所有 MCP connection 与 stdio 子进程都被回收。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 权限来自本地,不来自 server 声明 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>MCP server 可以在 description 中声称自己只读,但权限只能来自本地可信策略(MCP Tool Policy)。远程业务错误不泄露 server 私有错误细节(脱敏)。effect 由本地 allowlist 指定,不是 server 说了算。</p>
+        <p>这和第3章一脉相承:模型只能提出调用,是否执行由 Harness 决定。MCP server 也是外部不可信声明,本地策略才是硬边界。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 只进入 Lead,不进入 Subagent/Teammate <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>动态工具只进入 Lead 的 live ToolRegistry。Subagent 与 Teammate 始终看不到 MCP 管理工具(connect_mcp/disconnect_mcp)和远程工具。</p>
+        <p>这避免子 Agent 或队友擅自连接/断开 MCP server,也避免远程工具的不可信声明进入隔离执行环境。MCP 生命周期由 Lead 统一管理。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:MCP 连接与动态工具</h2>
+    <div class="sec-desc">连接 demo_alpha/demo_beta,看 Published 工具如何经验证变成 Exposed,断开 alpha 后只撤销 alpha 的工具。注意前缀防同名串线。</div>
+    <div class="mcp-sim">
+      <div class="mcp-ctrl">
+        <button class="btn primary" id="connectA">🔌 connect_mcp(demo_alpha)</button>
+        <button class="btn" id="connectB">🔌 connect_mcp(demo_beta)</button>
+        <button class="btn" id="disconnectA">⏏️ disconnect(demo_alpha)</button>
+        <button class="btn" id="reset">↺ 重置</button>
+      </div>
+      <div class="mcp-grid">
+        <div class="mcp-box"><h4>demo_alpha (stdio 子进程)</h4><div id="alpha"></div></div>
+        <div class="mcp-box"><h4>demo_beta (stdio 子进程)</h4><div id="beta"></div></div>
+      </div>
+      <div class="mcp-state" id="state"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">Published≠Exposed:远程声明是外部数据,本地 policy 验证后才暴露;权限来自本地可信策略,不来自 server 声明</div>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第十八章glm生成.html"><span class="lbl">上一章</span>← 文件冲突 Worktree</a>
+    <a class="next" href="第二十章glm生成.html"><span class="lbl">下一章</span>完整 Harness →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 19 章 / 共 20 章</footer>
+<script>
+const alpha=document.getElementById("alpha"),beta=document.getElementById("beta"),stateEl=document.getElementById("state");
+let aConn=false,bConn=false;
+function render(){
+  alpha.innerHTML = aConn
+    ? '<div class="mcp-tool published"><span class="nm">lookup</span><span class="st">published</span></div><div class="mcp-tool exposed"><span class="nm">mcp__demo_alpha__lookup</span><span class="st">exposed ✓</span></div>'
+    : '<div style="color:var(--faint);font-size:.78rem">(未连接)</div>';
+  beta.innerHTML = bConn
+    ? '<div class="mcp-tool published"><span class="nm">lookup</span><span class="st">published</span></div><div class="mcp-tool exposed"><span class="nm">mcp__demo_beta__lookup</span><span class="st">exposed ✓</span></div>'
+    : '<div style="color:var(--faint);font-size:.78rem">(未连接)</div>';
+  const exposed=(aConn?1:0)+(bConn?1:0);
+  stateEl.innerHTML=`Lead 可见工具: connect_mcp, disconnect_mcp${aConn?', <b style="color:var(--ok)">mcp__demo_alpha__lookup</b>':''}${bConn?', <b style="color:var(--ok)">mcp__demo_beta__lookup</b>':''} · 远程工具数: <b>${exposed}</b> · 下一次模型请求才可见新工具`;
+}
+document.getElementById("connectA").onclick=()=>{aConn=true;render();};
+document.getElementById("connectB").onclick=()=>{bConn=true;render();};
+document.getElementById("disconnectA").onclick=()=>{aConn=false;render();};
+document.getElementById("reset").onclick=()=>{aConn=false;bConn=false;render();};
+render();
+
+const questions=[
+  {q:"六个术语中,最关键的区分是?",o:["Alias vs Connection","Published vs Exposed:server发布的是外部数据,本地policy验证后才暴露为可执行","Policy vs Snapshot","Connection vs Snapshot"],a:1,e:"Published MCP Tool是server通过tools/list发布的外部数据(不可信)。Exposed MCP Tool是远程声明经名称/schema/policy校验后本地真正暴露的(可信)。server说只读不算,本地allowlist配置effect才算。"},
+  {q:"进程内 handler dict 算 MCP 吗?缺什么?",o:["算","不算:没transport/没官方Client与StdioClientTransport/没initialize/没tools/list分页/没tools/call/没子进程退出超时取消关闭语义,server和Agent同进程","算,功能一样","取决于实现"],a:1,e:"P19直接用@modelcontextprotocol/sdk,传输路径:McpServerSpec→StdioClientTransport→Client.connect(initialize)→Client.listTools(分页)→Client.callTool。演示server是独立TypeScript子进程,真启动两进程通过stdin/stdout交换MCP消息。"},
+  {q:"Published 和 Exposed 的区别?server 说只读就只读吗?",o:["是,server说了算","否:server说只读只是发布外部数据;只有本地allowlist为精确工具名配置effect,schema和名称通过验证,才成为Exposed可执行","取决于配置","自动只读"],a:1,e:"权限来自本地可信策略(MCP Tool Policy),不来自server声明。effect由本地allowlist指定。这和第3章一脉相承:模型只能提出调用,是否执行由Harness决定。MCP server也是外部不可信声明。"},
+  {q:"connect_mcp 回复里调用新工具会怎样?第几次请求才看到?",o:["立即可见","稳定得到unknown_tool;下一次模型请求才看到新工具(Registry Snapshot是不可变快照,一次请求和回复共用同一版工具集合)","第三次请求","永远看不到"],a:1,e:"connect_mcp所在回复里若提前调用新工具,该调用稳定得到unknown_tool。Registry Snapshot是不可变快照:一次模型请求及其回复共同使用同一版工具集合。动态注册的工具下一轮才进入新snapshot。"},
+  {q:"断开 alpha 后,beta 的工具会受影响吗?",o:["会,全部撤销","不会:只撤销alpha的全部定义,beta仍可调用(原子撤销不影响其他connection)","beta也断开","取决于配置"],a:1,e:"断开alpha后只撤销alpha的全部定义,beta仍可调用。原子撤销:超时或子进程退出会撤销该alias的全部工具。Runner关闭后所有MCP connection与stdio子进程都被回收。"},
+  {q:"Subagent 和 Teammate 能看到 MCP 管理工具和远程工具吗?",o:["都能看到","都看不到:动态工具只进入Lead的live ToolRegistry,Subagent与Teammate始终看不到MCP管理工具和远程工具","只Subagent能","只Teammate能"],a:1,e:"动态工具只进入Lead。避免子Agent或队友擅自连接/断开MCP server,也避免远程工具不可信声明进入隔离执行环境。MCP生命周期由Lead统一管理。"},
+  {q:"两个 server 都发布 lookup,本地工具名如何防串线?",o:["会串线","前缀:mcp__demo_alpha__lookup 和 mcp__demo_beta__lookup,分别返回alpha和beta","合并成一个","报错"],a:1,e:"本地工具名加前缀:mcp__{alias}__{tool_name}。两个lookup分别返回alpha和beta,证明同名工具没串线。前缀让不同server的同名工具在本地注册表中唯一。"},
+  {q:"Runner 关闭后,MCP connection 和子进程怎样?",o:["残留","所有MCP connection与stdio子进程都被回收","只回收connection","只杀子进程"],a:1,e:"Runner关闭后所有MCP connection与stdio子进程都被回收。这是资源生命周期管理(和第13-15章的JobSupervisor/CronRuntime/TeammateRuntime一样纳入close())。不留下孤儿子进程或悬挂连接。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!MCP动态工具池你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看六术语和Published/Exposed":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

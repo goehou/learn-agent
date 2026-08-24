@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第四章 顶级 AI Agent 是如何利用 Hook 解耦的 （Agent架构实操）</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#131a2e; --panel2:#1a2338; --line:#2a3550;
+    --text:#e8edf7; --muted:#9aa7c2; --accent:#5b8cff; --accent2:#8b5bff;
+    --ok:#3ecf8e; --bad:#ff5d6c; --warn:#ffc24b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.16), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(139,91,255,.14), transparent 55%),
+      var(--bg);
+    color:var(--text); line-height:1.7; min-height:100vh;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1060px; margin:0 auto; padding:28px 20px 80px}
+
+  /* header */
+  header.top{
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:linear-gradient(135deg,#151d33,#101527);
+    padding:28px 30px; position:relative; overflow:hidden;
+  }
+  .badge-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px}
+  .badge{
+    font-size:12px; padding:3px 10px; border-radius:20px; letter-spacing:.5px;
+    background:rgba(91,140,255,.12); color:#9db8ff; border:1px solid rgba(91,140,255,.35);
+  }
+  .badge.ch{border-color:rgba(139,91,255,.5); color:#c3abff; background:rgba(139,91,255,.14)}
+  h1.top-title{font-size:clamp(20px,3vw,28px); line-height:1.45; margin-bottom:10px}
+  .tagline{color:var(--muted); font-size:15px}
+  .overview{margin-top:16px; background:rgba(0,0,0,.18); border-left:3px solid var(--accent); padding:12px 16px; border-radius:8px; color:#cdd6ea; font-size:14.5px}
+
+  /* progress */
+  .progress{border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin:18px 0; background:var(--panel)}
+  .progress-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .progress-bar{flex:1 1 220px; height:8px; border-radius:6px; background:#25314f; overflow:hidden}
+  .progress-fill{height:100%; width:0%; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .5s ease}
+  .progress-txt{font-size:13px; color:var(--muted)}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px}
+  .chips a{
+    width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:8px; font-size:12px; color:var(--muted);
+  }
+  .chips a.active{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border-color:transparent; font-weight:700}
+  .chips a:hover{color:var(--text); border-color:var(--accent)}
+
+  /* section */
+  section{margin-top:28px}
+  .sec-head{display:flex; align-items:center; gap:12px; font-size:19px; font-weight:700; margin-bottom:16px}
+  .sec-head .idx{
+    width:30px; height:30px; flex:0 0 30px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; font-size:14px; color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+  }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px}
+
+  /* goals */
+  .goals{display:grid; gap:10px; margin:0}
+  .goals li{
+    list-style:none; display:flex; gap:10px; align-items:flex-start;
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14.5px;
+  }
+  .goals li::before{content:"✔"; color:var(--ok); font-weight:700}
+
+  /* knowledge */
+  .know{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .know-title{font-size:16px; font-weight:700; margin-bottom:6px; color:#cdd9f7}
+  .know-body{color:#cdd6ea; font-size:14.5px}
+  .code{
+    margin-top:12px; background:#0a0f1d; border:1px solid #22304d; border-radius:10px;
+    padding:14px 16px; overflow-x:auto; font-size:13px; line-height:1.6;
+    font-family:"Cascadia Code",Consolas,monospace; color:#a8e6cf;
+  }
+  .code code{font-family:inherit}
+
+  /* flow */
+  .flow{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
+  .flow-step{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .flow-num{width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(91,140,255,.18); color:#9db8ff; font-size:13px; font-weight:700; margin-bottom:8px}
+  .flow-step b{font-size:14px}
+  .flow-step p{color:var(--muted); font-size:12.5px; margin-top:4px}
+
+  /* glossary */
+  .gloss{display:flex; gap:12px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:10px; background:var(--panel2); font-size:14px}
+  .gloss-term{flex:0 0 200px; color:var(--warn); font-weight:700; font-family:"Cascadia Code",Consolas,monospace; font-size:13.5px}
+  @media(max-width:640px){.gloss-term{flex-basis:120px}}
+
+  /* quiz */
+  .quiz-item{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .quiz-q{font-size:15.5px; font-weight:600; margin-bottom:12px}
+  .quiz-q span{color:var(--accent)}
+  .quiz-opts{display:grid; gap:8px}
+  .quiz-opt{
+    display:flex; align-items:center; gap:12px; text-align:left;
+    background:#141c31; color:var(--text); border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px; cursor:pointer; font-size:14px; transition:.15s;
+    font-family:inherit;
+  }
+  .quiz-opt:hover{border-color:var(--accent); background:#1a2440}
+  .quiz-opt .opt-key{
+    width:24px; height:24px; flex:0 0 24px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:7px; font-size:12px; color:var(--muted); font-weight:700;
+  }
+  .quiz-opt.correct{border-color:var(--ok); background:rgba(62,207,142,.1)}
+  .quiz-opt.correct .opt-key{background:var(--ok); color:#06281a; border-color:var(--ok)}
+  .quiz-opt.wrong{border-color:var(--bad); background:rgba(255,93,108,.1)}
+  .quiz-opt.wrong .opt-key{background:var(--bad); color:#2c0810; border-color:var(--bad)}
+  .quiz-opt:disabled{cursor:default; opacity:.85}
+  .quiz-feedback{margin-top:12px; display:flex; gap:10px; align-items:flex-start}
+  .quiz-feedback .fb-icon{font-size:18px; line-height:1.4}
+  .quiz-feedback .fb-text{font-size:14px; color:#cdd6ea}
+  .quiz-feedback.correct{color:var(--ok); border:1px solid rgba(62,207,142,.4); background:rgba(62,207,142,.07); padding:10px 14px; border-radius:10px}
+  .quiz-feedback.wrong{color:var(--bad); border:1px solid rgba(255,93,108,.4); background:rgba(255,93,108,.07); padding:10px 14px; border-radius:10px}
+  .hidden{display:none}
+  .quiz-bar{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px}
+  .quiz-bar .score{font-size:14px; color:var(--muted)}
+  .quiz-bar .score b{color:var(--text)}
+  .btn-reset{
+    background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer;
+    padding:7px 14px; border-radius:10px; font-size:13px; transition:.15s; font-family:inherit;
+  }
+  .btn-reset:hover{color:var(--text); border-color:var(--accent)}
+
+  /* review */
+  .review-list{list-style:none; display:grid; gap:10px}
+  .review-list li{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:11px 16px; font-size:14px; display:flex; gap:10px}
+  .review-list li::before{content:"▶"; color:var(--accent); font-size:12px}
+
+  /* nav */
+  .nav{margin-top:34px; display:flex; justify-content:space-between; gap:10px}
+  .nav-btn{
+    padding:11px 18px; border-radius:12px; border:1px solid var(--line); background:var(--panel2);
+    color:var(--text); font-size:14px; transition:.15s;
+  }
+  .nav-btn:hover{border-color:var(--accent); text-decoration:none; background:#1c2745}
+  .nav-btn.disabled{opacity:.4; cursor:default; color:var(--muted)}
+  footer{margin-top:40px; text-align:center; color:#5d6b8a; font-size:12.5px; border-top:1px solid var(--line); padding-top:18px}
+
+  .to-top{
+    position:fixed; right:22px; bottom:22px; width:44px; height:44px; border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); transition:.2s; z-index:50;
+  }
+  .to-top:hover{transform:translateY(-3px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="badge-row">
+      <span class="badge ch">第 四 章</span>
+      <span class="badge">Agent 架构实操</span>
+      <span class="badge">深入学习 · 交互式</span>
+      <span class="badge">含 QA 测试</span>
+    </div>
+    <h1 class="top-title">顶级 AI Agent 是如何利用 Hook 解耦的</h1>
+    <div class="tagline">💡 四个结构化挂载点：UserPromptSubmit / PreToolUse / PostToolUse / Stop。</div>
+    <div class="overview">在现有 Agent Loop 中加入四个 Hook 挂载点，同时不破坏消息配对、工具校验和权限边界。Hook 是 Agent 内部生命周期的拦截点：日志、补上下文、改写工具输入输出、建议权限或控制是否续跑。Hook 的 allow 只是建议，不能绕过系统 deny。</div>
+  </header>
+
+  <div class="progress">
+    <div class="progress-row">
+      <span style="font-size:13px;color:var(--muted)">本章进度</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-txt" id="progressTxt">0%</span>
+    </div>
+    <div class="chips"><a href="第一章deepseek生成.html" title="Agent Loop：一个循环，就是模型与真实世界之间的全部距离">1</a><a href="第二章deepseek生成.html" title="给 Agent 加一个工具，只需要加一行">2</a><a href="第三章deepseek生成.html" title="深度拆解复刻 Claude Code 权限系统">3</a><a class='active' href="第四章deepseek生成.html" title="顶级 AI Agent 是如何利用 Hook 解耦的">4</a><a href="第五章deepseek生成.html" title="为什么上下文越长，系统提示词越没用">5</a><a href="第六章deepseek生成.html" title="从“单兵死磕”到“分身协作”：复杂任务下 AI Agent 的工程化突围">6</a><a href="第七章deepseek生成.html" title="别再硬塞 Prompt 了！手把手教你搭建一套工业级的 Agent Skill 技能系统">7</a><a href="第八章deepseek生成.html" title="拆解复刻 Claude Code 核心设计：四级压缩法干掉上下文膨胀">8</a><a href="第九章deepseek生成.html" title="从上下文压缩到文件级持久化：彻底解决 AI Agent 的健忘症">9</a><a href="第十章deepseek生成.html" title="从“一锅炖”到“模块化”：重塑 AI Agent 的逻辑骨架">10</a><a href="第十一章deepseek生成.html" title="API 韧性即生命：决定 AI Agent 商业化成败的隐藏细节">11</a><a href="第十二章deepseek生成.html" title="实战干货：5 个工具、3 个状态，带你撸出一个生产级 Agent 任务引擎">12</a><a href="第十三章deepseek生成.html" title="从串行到异步：AI Agent 架构演进中的“慢操作”填坑指南">13</a><a href="第十四章deepseek生成.html" title="让 Agent 学会看表：Cron 调度器的设计与实现">14</a><a href="第十五章deepseek生成.html" title="解密 Claude Code 协作机制：如何通过 Inbox 注入让 AI 队友真正实现“异步通信”">15</a><a href="第十六章deepseek生成.html" title="从“单兵作战”到“自组织团队”，多 Agent 协同的必经之路">16</a><a href="第十七章deepseek生成.html" title="从“人肉派发”到“自驱轮询”：多智能体（Agent Team）去中心化协作实战">17</a><a href="第十八章deepseek生成.html" title="多 Agent 并行开发时的文件冲突，到底该怎么解">18</a><a href="第十九章deepseek生成.html" title="从静态工具到动态工具池：一次 MCP 接入让我重构了 Agent 架构">19</a><a href="第二十章deepseek生成.html" title="Agent 架构设计：工具调用、权限控制、记忆机制、上下文压缩与 MCP 集成">20</a></div>
+  </div>
+
+  
+  <section>
+    <div class="sec-head"><span class="idx">1</span> 本章导读与学习目标</div>
+    <div class="panel"><ul class="goals"><li>说出四个 Hook 事件各自触发在流水线的哪一步，以及为什么是这四个位置。</li><li>解释为什么 Hook 的返回值必须是结构化对象，而不是 <code>"stop"</code> 这类字符串。</li><li>说清「Hook 说 allow」和「权限系统说 allow」的区别——前者只是建议。</li><li>讲出一个 Post Hook 要求停止时，同一轮里其他工具调用会发生什么，以及为什么不能直接 return。</li><li>解释 Stop Hook 为什么最多只能强制续跑一次。</li><li>判断一个 Hook 抛异常时，会得到哪个错误码、handler 有没有执行过。</li></ul>
+
+      <table class="dtable">
+        <tr><th style="width:30%">你需要先具备</th><th>说明</th></tr>
+        <tr><td>读完第 1—3 章</td><td>本章不新增任何工具或权限规则，只在已有流水线上开孔</td></tr>
+        <tr><td>记得 <code>prepare → permission → invoke</code></td><td>四个挂载点全部围绕这条顺序摆放</td></tr>
+        <tr><td>记得 <code>deny &gt; ask &gt; allow &gt; passthrough</code></td><td>本章的 Hook 建议要挂进这个合并逻辑</td></tr>
+        <tr><td>记得 <code>validateToolPairing()</code></td><td>本章一半的设计约束都来自「每个调用必须配对」</td></tr>
+      </table>
+
+      <div class="code"><code>本章导读（你在这）
+  ↓
+① 先看一眼真实的执行顺序    ← 一次运行的完整日志，四个事件各打一行
+  ↓
+② 验收结果 + 为什么需要扩展点 ← 循环为什么不该继续长大
+  ↓
+③ 四个事件 + HookContext    ← 位置固定、数据按事件裁剪
+  ↓
+④ HookResult                ← 本章设计的核心：为什么不用字符串
+  ↓
+⑤ HookRegistry              ← 顺序、合并规则、短路
+  ↓
+⑥ 四个事件逐个看            ← Submit / Pre / Post / Stop 各自能做什么
+  ↓
+⑦ 两个硬约束                ← Hook allow 只是建议；停止也要保持配对
+  ↓
+⑧ 故障映射 + P03/P04 差异
+  ↓
+⑨ 运行、验证与小结           ← 动手 + 排错 + 自测</code></div>
+      <div class="note"><span class="lab">想先看画面？</span>跳到第 3 节「先看一眼真实的执行顺序」，一条命令看四行 <code>[Hook]</code> 日志。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">2</span> 术语速查（本章第一次出现的词）</div>
+    <div class="panel">
+      <div class="gloss"><span class="gloss-term">Hook</span>注册在固定位置的回调。由应用注册，不是插件沙箱。</div>
+      <div class="gloss"><span class="gloss-term">挂载点</span>Loop 里发布结构化上下文的确定位置。本章共四个。</div>
+      <div class="gloss"><span class="gloss-term">HookEvent</span>四个事件名之一：UserPromptSubmit / PreToolUse / PostToolUse / Stop。</div>
+      <div class="gloss"><span class="gloss-term">HookContext</span>事件发布给回调的数据。<b>不同事件的可用字段不同</b>。</div>
+      <div class="gloss"><span class="gloss-term">HookResult</span>回调的返回值。每个字段只有一种语义，且只在特定事件合法。</div>
+      <div class="gloss"><span class="gloss-term">HookRegistry</span>按事件保存回调列表；<b>注册顺序 = 执行顺序</b>。</div>
+      <div class="gloss"><span class="gloss-term">permissionBehavior</span>Pre Hook 提出的权限<b>建议</b>，不是决定。</div>
+      <div class="gloss"><span class="gloss-term">updatedInput</span>Pre Hook 改写后的参数。会被重新 Zod 校验并深度冻结。</div>
+      <div class="gloss"><span class="gloss-term">blockingError</span>Pre Hook 直接阻断，权限和 handler 都不跑。</div>
+      <div class="gloss"><span class="gloss-term">updatedOutput</span>Post Hook 改写后的工具结果。</div>
+      <div class="gloss"><span class="gloss-term">additionalContext</span>追加的 system 消息。<b>只能是 system</b>，且延后写入。</div>
+      <div class="gloss"><span class="gloss-term">preventContinuation</span>Post Hook 表示本轮不再请求模型。</div>
+      <div class="gloss"><span class="gloss-term">forceContinue</span>Stop Hook 追加一条 user 消息并再问一次模型。</div>
+      <div class="gloss"><span class="gloss-term">stopHookActive</span>标记「已经强制续跑过一次」，防死循环。</div>
+      <div class="gloss"><span class="gloss-term">短路</span>出现 blockingError 或 forceContinue 时，后续同类回调不再执行。</div>
+      <div class="gloss"><span class="gloss-term">HookContractError</span>回调违反契约（返回值类型不对、用了非法字段、改了工具身份）。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">3</span> 先看一眼真实的执行顺序</div>
+    <div class="panel">
+      <div class="note"><span class="lab">一次只读任务</span><code>npm run ch04 -- --prompt '读取 README.md 并概括运行方式'</code>，stderr 会打出四行（<code>[Permission]</code> 是第 3 章审计，<code>[Hook]</code> 是本章新增）：</div>
+      <pre class="code"><code>[Hook] UserPromptSubmit                ← ① prompt 已提交，模型还没收到请求
+[Hook] PreToolUse: read_file           ← ② 工具已查到、参数已过 Zod，权限还没判
+[Permission] read_file: allow (default) - No permission rule blocked the request
+[Hook] PostToolUse: read_file -&gt; ok    ← ③ handler 跑完了，结果还没写进历史
+[Hook] Stop                            ← ④ 模型给出了无工具调用的回答，准备结束</code></pre>
+      <pre class="code"><code>用户提交 prompt
+  ├─ ① UserPromptSubmit ─ 能加 system 上下文，不能改/删 prompt
+模型返回 tool_calls → ToolRegistry.prepare
+  ├─ ② PreToolUse ────── 能改参数、提权限建议、直接阻断
+PermissionPolicy / approval → handler（真正的副作用）
+  ├─ ③ PostToolUse ───── 能改结果、能要求本轮结束
+写入配对的 tool result
+模型返回无工具调用的回答
+  └─ ④ Stop ──────────── 能强制再问一次模型（最多一次）</code></pre>
+      <table class="dtable">
+        <tr><th>事件</th><th>为什么在这里</th></tr>
+        <tr><td><code>UserPromptSubmit</code></td><td>模型还没看到任何东西，是<b>唯一</b>能影响本轮输入的时机</td></tr>
+        <tr><td><code>PreToolUse</code></td><td>参数已经可信（过了 Zod），但副作用还没发生——<b>唯一</b>能无损阻断的时机</td></tr>
+        <tr><td><code>PostToolUse</code></td><td>结果已经产生，但还没进历史——<b>唯一</b>能改结果的时机</td></tr>
+        <tr><td><code>Stop</code></td><td>循环准备结束，是<b>唯一</b>能判断「任务真的做完了吗」的时机</td></tr>
+      </table>
+      <div class="note warn"><span class="lab">注意每一行的「唯一」</span>挂载点不是随便挑的位置，是那个信息刚好齐备、动作又还来得及的位置。早一步信息不全，晚一步无法挽回。</div>
+      <div class="know" style="margin-top:14px">
+        <div class="know-title">一个更有用的例子：三个真实需求</div>
+        <table class="dtable">
+          <tr><th>需求</th><th>不用 Hook 会怎样</th><th>挂在哪</th></tr>
+          <tr><td>每次运行都提醒模型核对验收标准</td><td>改 system prompt，但那会破坏静态前缀 / KV Cache</td><td>UserPromptSubmit 返回 <code>additionalContext</code></td></tr>
+          <tr><td>禁止写某个构建脚本生成的文件</td><td>在 write_file handler 里加 if，工具实现被业务规则污染</td><td>PreToolUse 返回 <code>blockingError</code></td></tr>
+          <tr><td>工具输出太长就截断</td><td>在每个工具的 handler 里各写一遍截断逻辑</td><td>PostToolUse 返回 <code>updatedOutput</code></td></tr>
+        </table>
+        <div class="note"><span class="lab">这就是本章要换来的东西</span>三个需求，三个不同位置，<b>Agent Loop 一行不改，工具实现一行不改</b>。</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">4</span> 核心知识点</div>
+    <div class="panel"><div class="know" style="--i:0">
+        <div class="know-title">为什么不把扩展逻辑塞进循环</div>
+        <p class="know-body">同一个循环膨胀到两百多行：日志、写文件确认、结果通知、自动备份全塞进来，变成谁也不敢改的 if-else 堆。问题不在需求太多，而在扩展行为和核心编排没有分开。Hook 就是在确定的位置发布结构化上下文，让已注册回调按顺序响应——循环只负责确定性编排。</p>
+      </div><div class="know" style="--i:1">
+        <div class="know-title">四个事件：HookContext 只给需要的数据</div>
+        <p class="know-body">HOOK_EVENTS 冻结元组同时定义运行时集合和 TS 类型。每个事件的 HookContext 只有自己需要的字段：Submit 只拿 user message；Pre 只拿已校验的 prepared；Post 拿 prepared + result；Stop 拿 history + stopHookActive。给 Pre 塞一条 message 会立即得到 HookContractError，而不是让回调猜。</p>
+        <pre class="code"><code>export const HOOK_EVENTS = Object.freeze([
+  &quot;UserPromptSubmit&quot;, &quot;PreToolUse&quot;, &quot;PostToolUse&quot;, &quot;Stop&quot;,
+] as const);
+export type HookEvent = (typeof HOOK_EVENTS)[number];</code></pre>
+      </div><div class="know" style="--i:2">
+        <div class="know-title">HookResult：为什么不用字符串</div>
+        <p class="know-body">一个 <code>"stop"</code> 至少有四种可能的意思（拒绝本次调用 / 执行但别再问 / 整个 run 失败 / 别让 Stop 续跑），副作用完全不同。<code>"stpo"</code> 拼错了运行时只会当成「未知返回值」忽略——正在阻断危险写入的 Hook 静默失效。结构化 HookResult 每个字段只有一种语义，且只在特定事件合法，用 <code>validateFor()</code> 检查非法字段。</p>
+        <pre class="code"><code>interface HookResultOptions {
+  readonly permissionBehavior?: PermissionBehavior; // Pre 建议
+  readonly updatedInput?: PreparedToolCall;          // Pre 改写参数
+  readonly updatedOutput?: ToolResult;               // Post 改写结果
+  readonly additionalContext?: readonly ChatMessage[];// 四类，只能 system
+  readonly blockingError?: ToolResult;                // Pre 阻断
+  readonly preventContinuation?: boolean;             // Post 本轮结束
+  readonly forceContinue?: ChatMessage;               // Stop 续跑一次
+}</code></pre>
+        <div class="note warn"><span class="lab">只允许 system 是三种风险的最小交集</span>若允许注入 <code>tool</code> 消息 → validateToolPairing 抛 orphan tool result；允许带 toolCalls 的 assistant → 模型以为请求过这些工具但等不到结果；允许 user → 指令来源被伪造。system 消息不参与工具配对，也不会被误认为用户意图。</div>
+        <div class="note"><span class="lab">为什么「延后写入」</span>工具阶段产生的 additionalContext 不会立刻 push，而是攒到 deferredContext，等所有 tool result 都写完才追加。否则 system 会插在两个 tool result 之间，破坏配对。</div>
+      </div><div class="know" style="--i:3">
+        <div class="know-title">HookRegistry：注册顺序 = 执行顺序</div>
+        <p class="know-body">每个事件独立回调列表；run() 对每个回调用 await，同步/异步都保持注册顺序。返回普通 object 不算合法 HookResult（运行时 instanceof 检查）。合并规则按字段分：</p>
+        <pre class="code"><code>updatedInput / updatedOutput  后覆盖前   ← 流水线加工，后者看到前者产出
+additionalContext            顺序拼接
+preventContinuation          布尔 OR     ← 只要有一个要求停就停(更保守的赢)
+permissionBehavior           deny&gt;ask&gt;allow&gt;passthrough (更保守的赢)
+Pre 遇 blockingError 立即短路后续 Pre 回调
+Stop 第一次遇 forceContinue 后停止后续 Stop 回调</code></pre>
+        <p class="know-body">三个 Post Hook 依次注册，Hook 2 看到的是 Hook 1 的产出——想做「先脱敏、再截断」还是反过来，靠注册顺序。</p>
+      </div><div class="know" style="--i:4">
+        <div class="know-title">UserPromptSubmit：只能补充，不能改写</div>
+        <p class="know-body">User Prompt 刚提交、模型还没收到请求时触发。可以记录输入或增加 system context（如「本轮需要特别核对验收结果」）。run() 先运行 Hook，再按固定顺序写入历史。P04 不允许替换、删除或阻断原始 user message。</p>
+        <pre class="code"><code>const submitted = userMessage(prompt);
+const promptHook = await hooks.runUserPrompt(submitted);
+history.push(submitted, ...promptHook.additionalContext);</code></pre>
+      </div><div class="know" style="--i:5">
+        <div class="know-title">PreToolUse：副作用之前的扩展点</div>
+        <p class="know-body">工具已存在、参数已过 Zod，但权限尚未判断、handler 尚未运行。可补上下文、改写合法输入、提权限建议或返回结构化阻断错误。命中 blockingError 后权限和 handler 都不跑，<code>Error [hook_blocked]</code> 仍回填给原调用。</p>
+        <pre class="code"><code>// 阻断写入受管理文件
+if (argumentsValue.path === &quot;generated.txt&quot;) {
+  return new HookResult({ blockingError: toolError(
+    &quot;hook_blocked&quot;, &quot;generated.txt is managed elsewhere&quot;) });
+}</code></pre>
+        <div class="note"><span class="lab">updatedInput 的硬约束</span>只能改参数，不能换工具身份：tool_call_id 不变、工具名不变、<b>StoredToolDefinition 必须是同一个对象（引用相等）</b>、新 arguments 仍过原 Zod schema。否则恶意 Hook 可以把 write 工具伪装成 read 绕过权限——名字可以伪造，对象引用不行。改写后的参数会重解析 + structuredClone + 深度冻结，审批看到和执行用的是同一个不可变副本，杜绝「批准 A 执行 B」的竞态。</div>
+      </div><div class="know" style="--i:6">
+        <div class="know-title">Hook allow 只是建议，不是授权</div>
+        <p class="know-body">Pre Hook 返回 <code>permissionBehavior: "allow"</code>，Loop 不会直接执行，而是转成结构化建议（source 是 pre-tool-hook）传给 PermissionPolicy，第 3 章的硬边界、Shell 审批、固定规则仍一起合并。只要任一系统参与方 deny，Hook 的 allow 就不会触发审批或 handler。</p>
+        <pre class="code"><code>Pre Hook → hard permission policy → approval → handler
+// Hook 是扩展机制，不是第二套权限系统</code></pre>
+        <div class="note"><span class="lab">passthrough 的语义</span>Hook 不产生任何建议，工具是否执行完全由 PermissionPolicy 决定。Claude Code 官方同样强调：Hook 可以拒绝调用，但保持沉默并不会自动批准调用。</div>
+      </div><div class="know" style="--i:7">
+        <div class="know-title">PostToolUse：串联观察和结果改写</div>
+        <p class="know-body">在 handler 完成后、tool message 写入历史前运行。`context.result` 反映前一个 Post Hook 的产出；返回 updatedOutput 覆盖结果。handler 成功或返回结构化错误时运行 Post；Pre 阻断、permission deny、Pre Hook 异常时不运行 Post。</p>
+        <pre class="code"><code>// 长输出截断
+if (result === undefined || result.isError || result.content.length &lt;= 100_000) {
+  return new HookResult();
+}
+return new HookResult({ updatedOutput: toolSuccess(
+  `\${result.content.slice(0, 100_000)}\n[truncated]`) });</code></pre>
+      </div><div class="know" style="--i:8">
+        <div class="know-title">preventContinuation 也必须保持配对</div>
+        <p class="know-body">Post Hook 要求停止时，Loop 不能直接 return——同一 assistant 消息可能还有其它 tool call，直接 return 会让它们成为孤儿，OpenAI 会拒绝、validateToolPairing 抛 missing tool results。</p>
+        <pre class="code"><code>call-1 → 正常执行并触发停止
+call-2 → Error [hook_stopped_continuation]: Skipped after PostToolUse ...
+call-3 → Error [hook_stopped_continuation]: ...
+先写入全部三个 tool result，再以 call-1 的结果正常结束</code></pre>
+        <div class="note warn"><span class="lab">一句话记住</span>「提前结束」是业务需求，「消息配对」是协议约束。业务需求要在协议约束内实现，不能反过来。call-2/call-3 不是被拒绝执行，是根本没被执行。</div>
+      </div><div class="know" style="--i:9">
+        <div class="know-title">Stop：最多强制续跑一次</div>
+        <p class="know-body">模型返回没有工具调用的回答时运行 Stop Hook。第一次 forceContinue 追加明确的 user 消息并再次请求模型，stopHookActive=true；第二次模型停止时回调仍执行并看到 stopHookActive，即使再返回 forceContinue 也会被移除。一次 run() 最多增加一个模型 turn，不会死循环。</p>
+        <pre class="code"><code>turn N    模型停止 → Stop Hook(active:false) → forceContinue → 续跑
+turn N+1  模型停止 → Stop Hook(active:true)  → forceContinue 被移除 → 结束</code></pre>
+        <div class="note"><span class="lab">限制的是控制权，不是执行权</span>第二次仍执行回调是刻意的：日志、指标、清理这些副作用不该因为「不能续跑了」就被跳过。</div>
+      </div><div class="know" style="--i:10">
+        <div class="know-title">Hook 故障如何返回</div>
+        <table class="dtable">
+          <tr><th>故障</th><th>工具结果</th><th>handler 已执行</th></tr>
+          <tr><td>prepare() 自身抛异常</td><td><code>tool_preparation_error</code></td><td>否</td></tr>
+          <tr><td>Pre 返回非法输入更新</td><td><code>hook_contract_error</code></td><td>否</td></tr>
+          <tr><td>Pre 抛出其他异常</td><td><code>hook_execution_error</code></td><td>否</td></tr>
+          <tr><td>权限评估或审计异常</td><td><code>permission_evaluation_error</code></td><td>否</td></tr>
+          <tr><td>Post 抛出异常</td><td><code>hook_execution_error</code></td><td><b>是</b></td></tr>
+        </table>
+        <div class="note warn"><span class="lab">Post 那行「是」是这张表的重点</span>Post 发生在 handler 之后，失败时不能声称副作用没发生。Pre 异常 → 磁盘没变化，可安全重试；Post 异常 → 文件可能已写，不该盲目重试。两者错误码相同（教学简化，第 11 章处理幂等）。工具阶段故障转成配对错误继续循环；Submit/Stop 在工具配对之外，非法结果让 run() 显式失败。</div>
+      </div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">5</span> 机制流程</div>
+    <div class="panel"><div class="flow"><div class="flow-step"><span class="flow-num">1</span><div><b>UserPromptSubmit</b><p>prompt 已提交，模型还没收到请求；可加 system 上下文，不能改写 prompt。</p></div></div><div class="flow-step"><span class="flow-num">2</span><div><b>PreToolUse</b><p>参数已过 Zod，权限未判；可改参数、提建议、阻断。</p></div></div><div class="flow-step"><span class="flow-num">3</span><div><b>PermissionPolicy</b><p>Hook
+建议并入 deny&gt;ask&gt;allow&gt;passthrough。</p></div></div><div class="flow-step"><span class="flow-num">4</span><div><b>handler</b><p>真正副作用发生。</p></div></div><div class="flow-step"><span class="flow-num">5</span><div><b>PostToolUse</b><p>可改结果、可要求本轮结束；preventContinuation 保持配对。</p></div></div><div class="flow-step"><span class="flow-num">6</span><div><b>写入配对结果</b><p>additionalContext 延后追加。</p></div></div><div class="flow-step"><span class="flow-num">7</span><div><b>Stop</b><p>最多强制续跑一次；第二次停止后结束。</p></div></div></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">6</span> 运行第 4 章</div>
+    <div class="panel">
+      <div class="flow">
+        <div class="flow-step"><span class="flow-num">0</span><div><b>准备环境</b><p><code>Set-Location code</code> + <code>npm ci</code>。</p></div></div>
+        <div class="flow-step"><span class="flow-num">1</span><div><b>先跑离线测试</b><p><code>npm run test:ch04</code> 预期 12 个文件 94 个测试，不需要 Key。</p></div></div>
+        <div class="flow-step"><span class="flow-num">2</span><div><b>看四个 Hook 各打一行日志</b><p>跑只读任务，stderr 出现四行 [Hook]。</p></div></div>
+        <div class="flow-step"><span class="flow-num">3</span><div><b>让 Hook 和审批同时出现</b><p>写文件任务里 [Permission] 与 [Hook] 交替。</p></div></div>
+        <div class="flow-step"><span class="flow-num">4</span><div><b>统一入口</b><p><code>agent-tutorial -- run --chapter 4</code>。</p></div></div>
+        <div class="flow-step"><span class="flow-num">5</span><div><b>（可选）完整离线门禁</b><p>typecheck / test / lint / format / build。</p></div></div>
+      </div>
+
+      <div class="know" style="margin-top:16px">
+        <div class="know-title">第 1 步 · 离线测试输出</div>
+        <pre class="code"><code>npm run test:ch04
+ Test Files  12 passed (12)
+      Tests  94 passed (94)
+# 从第 3 章的 61 涨到 94，多出的 33 个几乎全在 hooks.test.ts / ch04-hooks.test.ts</code></pre>
+      </div>
+
+      <div class="know">
+        <div class="know-title">第 2—3 步 · 四行日志与 Hook+审批</div>
+        <pre class="code"><code>npm run ch04 -- --prompt '读取 README.md 并概括运行方式'
+# stderr → [Hook] UserPromptSubmit
+#          [Hook] PreToolUse: read_file
+#          [Permission] read_file: allow (default) - ...
+#          [Hook] PostToolUse: read_file -&gt; ok
+#          [Hook] Stop
+
+npm run ch04 -- --prompt '把一句话写入 hook-demo.txt'
+# 写文件时仍是第 3 章的逐次审批，只是多了四行 [Hook] 生命周期日志</code></pre>
+      </div>
+
+      <div class="know">
+        <div class="know-title">常见报错排查</div>
+        <table class="dtable">
+          <tr><th style="width:34%">现象</th><th>原因 / 处理</th></tr>
+          <tr><td>看不到任何 <code>[Hook]</code> 行</td><td>Hook 日志写 stderr，你可能重定向掉了；别加 <code>2&gt;$null</code>，或确认跑的是 ch04 而不是 ch03</td></tr>
+          <tr><td><code>[Hook] PostToolUse: xxx -&gt; error</code></td><td>工具本身返回错误结果。正常观察日志，Post 在工具失败时也会跑</td></tr>
+          <tr><td>只有 PreToolUse 没有 PostToolUse</td><td>调用被 Pre 阻断或权限拒绝。正常行为</td></tr>
+          <tr><td><code>Error [hook_contract_error]</code></td><td>Pre Hook 返回的 updatedInput 不合法：tool_call_id / 工具名 / definition 引用 / Zod 不过</td></tr>
+          <tr><td><code>Error [hook_execution_error]</code></td><td>你写的 Hook 抛异常。Pre 和 Post 共用此码，自行判断在哪端</td></tr>
+          <tr><td><code>Error [hook_stopped_continuation]</code></td><td>同轮前面的调用触发了 preventContinuation。这些调用没被执行，正常</td></tr>
+          <tr><td>启动报 hooks require chapter 4 or later</td><td>给 P01–P03 传了 HookRegistry。换成 P04 或别传 hooks</td></tr>
+          <tr><td>Hook 返回普通对象报 must return HookResult</td><td>必须 <code>return new HookResult({...})</code>，运行时用 instanceof 检查</td></tr>
+          <tr><td>Stop 的 forceContinue 第二次没生效</td><td>stopHookActive===true，一次 run() 最多续跑一次，正常</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">7</span> 验证与实验</div>
+    <div class="panel">
+      <p class="know-body"><code>npm run test:ch04</code> 执行 12 个测试文件、94 个测试。本章新增两个，其余是前 3 章累计测试。</p>
+      <table class="dtable">
+        <tr><th style="width:30%">测试文件</th><th>验证内容</th></tr>
+        <tr><td><code>hooks.test.ts</code></td><td>单元层：HookContext 字段裁剪、HookResult.validateFor()、注册顺序、合并规则、updatedInput 重校验与冻结、短路行为</td></tr>
+        <tr><td><code>ch04-hooks.test.ts</code></td><td>端到端：Hook 与权限的优先级、阻断后 handler 未执行、preventContinuation 的配对、Stop 只续跑一次、P01–P03 行为未变</td></tr>
+      </table>
+
+      <div class="know" style="margin-top:16px">
+        <div class="know-title">四个建议动手做的小实验</div>
+        <table class="dtable">
+          <tr><th style="width:26%">实验</th><th>预期</th><th>学到什么</th></tr>
+          <tr><td><b>一 · 注册两个 Post Hook 观察加工链</b></td><td>第二个 Hook 的 context.result 是第一个的产出</td><td>Post 是流水线，不是并列观察者</td></tr>
+          <tr><td><b>二 · 让 Pre Hook 阻断一个写入</b><br>跑 <code>npm run ch04 -- --prompt '把 hello 写入 blocked.txt'</code></td><td><code>Error [hook_blocked]</code>，handler 没跑</td><td>blockingError 短路权限和 handler</td></tr>
+          <tr><td><b>三 · 让 Pre Hook 的 allow 挑战硬边界</b><br>跑 <code>npm run ch04 -- --prompt '把 hello 写入 ../outside.txt'</code></td><td>仍是 deny (workspace-boundary)</td><td>Hook allow 只是建议；系统 deny 永远优先</td></tr>
+          <tr><td><b>四 · 在 Pre Hook 里就地修改参数</b></td><td>抛 hook_contract_error</td><td>参数不可变，必须显式返回新 updatedInput</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">8</span> 本章小结</div>
+    <div class="panel">
+      <div class="know">
+        <div class="know-title">三句话版本</div>
+        <ul class="review-list">
+          <li>Hook 是在四个确定位置发布结构化上下文，让扩展逻辑从核心编排里搬出去。</li>
+          <li>返回值用结构化 HookResult 而不是字符串，因为控制流语义必须能被校验。</li>
+          <li>Hook 能建议、能改写、能阻断，但<b>不能授权</b>——系统 deny 永远优先。</li>
+        </ul>
+      </div>
+
+      <div class="know">
+        <div class="know-title">一定要记住的七条</div>
+        <table class="dtable">
+          <tr><th style="width:6%">#</th><th>结论</th><th style="width:24%">出现在哪一节</th></tr>
+          <tr><td>1</td><td>挂载点选在「信息刚好齐备、动作还来得及」的位置</td><td>先看一眼真实的执行顺序</td></tr>
+          <tr><td>2</td><td>additionalContext 只能是 system，且延后到配对完成后才写入</td><td>HookResult</td></tr>
+          <tr><td>3</td><td>updatedInput 必须重过 Zod 并深度冻结，否则会「批准 A 执行 B」</td><td>PreToolUse</td></tr>
+          <tr><td>4</td><td>definition 用引用相等锁定，防止 write 伪装成 read</td><td>PreToolUse</td></tr>
+          <tr><td>5</td><td>注册顺序 = 执行顺序 = 加工顺序；保守字段例外（取更严的）</td><td>HookRegistry</td></tr>
+          <tr><td>6</td><td>提前结束也要把同轮剩余调用补成配对错误</td><td>preventContinuation</td></tr>
+          <tr><td>7</td><td>Stop 最多续跑一次；第二次回调仍执行，只是控制权被收回</td><td>Stop</td></tr>
+        </table>
+      </div>
+
+      <div class="know">
+        <div class="know-title">本章代码边界（明确「还没做什么」）</div>
+        <table class="dtable">
+          <tr><th>已经有</th><th>还没有</th><th style="width:30%">说明</th></tr>
+          <tr><td>四个生命周期事件</td><td>官方 14+ 类事件（SessionStart、PreCompact、SubagentStart 等）</td><td>教学子集；按需在后续章节增加</td></tr>
+          <tr><td>顺序执行的进程内回调</td><td>插件隔离、独立超时、并行执行</td><td>不做。并行会让改写顺序和短路语义含混</td></tr>
+          <tr><td>blockingError / forceContinue 短路</td><td>官方那种「跑完全部再合并」</td><td>刻意简化；短路位置明确</td></tr>
+          <tr><td>结构化契约保护 Loop 状态</td><td>操作系统级沙箱</td><td>不做。Hook 是受信任的应用代码</td></tr>
+          <tr><td>统一的 hook_execution_error</td><td>区分「副作用已发生 / 未发生」</td><td>第 11 章讨论恢复与幂等时处理</td></tr>
+          <tr><td>UserPromptSubmit 追加上下文</td><td>替换、删除或阻断原始 prompt</td><td>不做。用户输入不该被扩展代码改写</td></tr>
+        </table>
+      </div>
+
+      <div class="know">
+        <div class="know-title">检查你是否真的读懂了（不看文章回答）</div>
+        <ul class="review-list">
+          <li>[Hook] PreToolUse 和 [Permission] 哪个先出现？为什么不能反过来？</li>
+          <li>为什么 additionalContext 只允许 system 消息？允许 tool 消息会怎样？</li>
+          <li>一个恶意 Pre Hook 想把 write_file 伪装成 read_file，哪一条检查拦住了它？</li>
+          <li>三个 Post Hook 依次改写结果，第三个看到的是哪个版本？</li>
+          <li>Post Hook 要求停止时，同一轮里其它调用为什么变成 hook_stopped_continuation？</li>
+          <li>Stop Hook 第二次还能 forceContinue 吗？回调还会执行吗？</li>
+          <li>Post Hook 抛异常，handler 执行过没有？为什么这个信息很重要？</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="quiz">
+    <div class="sec-head"><span class="idx">9</span> QA 测试环节（自测题）</div>
+    <div class="panel">
+      <div class="quiz-bar">
+        <span class="score">已完成 <b id="doneCount">0</b> / 8 · 答对 <b id="correctCount">0</b></span>
+        <button type="button" class="btn-reset" id="resetBtn">↺ 重新开始</button>
+      </div>
+      <div id="quizList"><div class="quiz-item" data-answer="1" data-index="0">
+        <div class="quiz-q"><span>Q1.</span> 四个 Hook 事件中，唯一能「在副作用发生前无损阻断」的是？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>UserPromptSubmit</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>PreToolUse</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>PostToolUse</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>Stop</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="3" data-index="1">
+        <div class="quiz-q"><span>Q2.</span> 为什么 HookResult 不用 "stop" 这种字符串？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>字符串传参更慢</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>OpenAI 不支持字符串</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>开发人员不喜欢字符串</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>一个 "stop" 有四种可能语义且无法校验，拼错会静默失效</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="2">
+        <div class="quiz-q"><span>Q3.</span> Pre Hook 返回 permissionBehavior "allow"，会发生什么？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>直接执行工具，跳过权限</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>转成结构化建议并入权限合并；系统 deny 仍优先</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>被当作 deny 处理</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>忽略，Hook 不能参与权限</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="2" data-index="3">
+        <div class="quiz-q"><span>Q4.</span> 防止恶意 Pre Hook 把 write_file 伪装成 read_file，靠哪条检查？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>禁止 Hook 改参数</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>名字相等检查</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>StoredToolDefinition 用引用相等锁定</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>每次重跑 OWASP 检查</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="4">
+        <div class="quiz-q"><span>Q5.</span> 一个 assistant 消息带 call-1/call-2/call-3，call-1 的 Post Hook 要求停止，会怎样？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>只执行 call-1，直接返回</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>call-1 正常执行，call-2/3 得到 hook_stopped_continuation 配对错误</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>全部执行完再停</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>抛异常终止</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="2" data-index="5">
+        <div class="quiz-q"><span>Q6.</span> Stop Hook 的 forceContinue 第二次为什么不生效？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>因为第二次不再调用回调</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>maxTurns 拦截</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>stopHookActive=true 时注册表移除 forceContinue，一次 run() 最多续跑一次</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>forceContinue 只对第一次请求有效</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="3" data-index="6">
+        <div class="quiz-q"><span>Q7.</span> Post Hook 抛异常时，handler 执行过没有？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>没有，和 Pre 一样</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>不确定，取决于异常类型</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>只有读操作才执行过</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>执行过（副作用已发生），所以模型不该盲目重试</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="7">
+        <div class="quiz-q"><span>Q8.</span> additionalContext 为什么只允许 system 消息？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>因为 system 更短</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>它是 tool 配对/伪造宜方消息/伪造用户意图三种风险的最小交集</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>因为只有 system 会有大量缓存</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>OpenAI API 限制</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div></div>
+    </div>
+  </section>
+
+
+
+  <nav class="nav"><a class="nav-btn" href="第三章deepseek生成.html">← 上一章 第三章</a> <a class="nav-btn" href="第五章deepseek生成.html">第五章 →</a></nav>
+
+  <footer>交互式学习页 · 由教程文档生成 · 第 四 章 · 含 8 道自测题</footer>
+</div>
+
+
+<button class="to-top" id="toTop" title="回到顶部">↑</button>
+
+<script>
+(function () {
+  const total = 8;
+  const doneKey = "quiz_done_" + 4;
+  const correctKey = "quiz_correct_" + 4;
+  const pickedKey = "quiz_picked_" + 4;
+
+  function load(name) { try { return JSON.parse(localStorage.getItem(name) || "null"); } catch { return null; } }
+  function save(name, val) { try { localStorage.setItem(name, JSON.stringify(val)); } catch {} }
+
+  let done = load(doneKey) || 0;
+  let correct = load(correctKey) || 0;
+  let picked = load(pickedKey) || {};
+
+  var WHY = ["PreToolUse 在参数可信(Zod 已过)而副作用未发生时,是唯一能无损阻断的位置。","一个 \"stop\" 至少有四种可能语义,字符串无法校验,拼错会静默失效;HookResult 每个字段语义唯一且可校验。","Hook 建议并入 deny>ask>allow>passthrough,系统 deny 永远优先。Hook 是扩展机制,不是第二套权限系统。","definition 用引用相等锁定——名字可以伪造,对象引用不行。锁定 definition 同时锁定了 effect/handler/schema。","直接 return 会让 call-2/3 成为孤儿,破坏配对;正确做法是给它们 hook_stopped_continuation 配对错误,再以 call-1 结束。","stopHookActive=true 时注册表移除 forceContinue,一次 run() 最多增加一个模型 turn。限制的是控制权,不是执行权。","Post 发生在 handler 之后,失败时不能声称副作用没发生,返回 hook_execution_error 并保留配对。","tool 消息破坏配对,伪造 assistant 制造等不到的调用,user 伪造来源;只允许 system 是三种风险的最小交集。"];
+  function updateProgress() {
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const fill = document.getElementById("progressFill");
+    const txt = document.getElementById("progressTxt");
+    if (fill) fill.style.width = pct + "%";
+    if (txt) txt.textContent = pct + "%";
+    const dc = document.getElementById("doneCount");
+    const cc = document.getElementById("correctCount");
+    if (dc) dc.textContent = done;
+    if (cc) cc.textContent = correct;
+  }
+  function renderFeedback(item, qi, sel, answer) {
+    const opts = item.querySelectorAll(".quiz-opt");
+    opts.forEach(function (opt, oi) {
+      opt.disabled = true;
+      if (oi === answer) opt.classList.add("correct");
+      else if (oi === sel) opt.classList.add("wrong");
+    });
+    const fb = item.querySelector(".quiz-feedback");
+    const isCorrect = sel === answer;
+    fb.classList.remove("hidden", "correct", "wrong");
+    fb.classList.add(isCorrect ? "correct" : "wrong");
+    fb.innerHTML =
+      '<div class="fb-icon">' + (isCorrect ? "✅" : "❌") + "</div>" +
+      '<div class="fb-text"><b>' + (isCorrect ? "回答正确！" : "回答错误") + "</b><br><span style='color:var(--muted);font-size:13px'>解析：" + (WHY[qi] || "") + "</span></div>";
+  }
+  document.querySelectorAll(".quiz-item").forEach(function (item) {
+    const qi = item.getAttribute("data-index");
+    const answer = Number(item.getAttribute("data-answer"));
+    const opts = item.querySelectorAll(".quiz-opt");
+    opts.forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        const oi = Number(opt.getAttribute("data-oi"));
+        if (picked[qi] !== undefined) return;
+        picked[qi] = oi; save(pickedKey, picked);
+        done += 1; if (oi === answer) correct += 1;
+        save(doneKey, done); save(correctKey, correct);
+        renderFeedback(item, qi, oi, answer); updateProgress();
+      });
+    });
+    if (picked[qi] !== undefined) renderFeedback(item, qi, picked[qi], answer);
+  });
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (!confirm("确定要清空本章的答题记录并重新开始吗？")) return;
+    done = 0; correct = 0; picked = {};
+    save(doneKey, done); save(correctKey, correct); save(pickedKey, picked);
+    location.reload();
+  });
+  const toTop = document.getElementById("toTop");
+  toTop.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+  updateProgress();
+})();
+
+</script>
+</body>
+</html>

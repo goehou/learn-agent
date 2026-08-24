@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第十五章 解密 Claude Code 协作机制：如何通过 Inbox 注入让 AI 队友真正实现“异步通信” （Agent架构实操）</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#131a2e; --panel2:#1a2338; --line:#2a3550;
+    --text:#e8edf7; --muted:#9aa7c2; --accent:#5b8cff; --accent2:#8b5bff;
+    --ok:#3ecf8e; --bad:#ff5d6c; --warn:#ffc24b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.16), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(139,91,255,.14), transparent 55%),
+      var(--bg);
+    color:var(--text); line-height:1.7; min-height:100vh;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1060px; margin:0 auto; padding:28px 20px 80px}
+
+  /* header */
+  header.top{
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:linear-gradient(135deg,#151d33,#101527);
+    padding:28px 30px; position:relative; overflow:hidden;
+  }
+  .badge-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px}
+  .badge{
+    font-size:12px; padding:3px 10px; border-radius:20px; letter-spacing:.5px;
+    background:rgba(91,140,255,.12); color:#9db8ff; border:1px solid rgba(91,140,255,.35);
+  }
+  .badge.ch{border-color:rgba(139,91,255,.5); color:#c3abff; background:rgba(139,91,255,.14)}
+  h1.top-title{font-size:clamp(20px,3vw,28px); line-height:1.45; margin-bottom:10px}
+  .tagline{color:var(--muted); font-size:15px}
+  .overview{margin-top:16px; background:rgba(0,0,0,.18); border-left:3px solid var(--accent); padding:12px 16px; border-radius:8px; color:#cdd6ea; font-size:14.5px}
+
+  /* progress */
+  .progress{border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin:18px 0; background:var(--panel)}
+  .progress-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .progress-bar{flex:1 1 220px; height:8px; border-radius:6px; background:#25314f; overflow:hidden}
+  .progress-fill{height:100%; width:0%; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .5s ease}
+  .progress-txt{font-size:13px; color:var(--muted)}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px}
+  .chips a{
+    width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:8px; font-size:12px; color:var(--muted);
+  }
+  .chips a.active{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border-color:transparent; font-weight:700}
+  .chips a:hover{color:var(--text); border-color:var(--accent)}
+
+  /* section */
+  section{margin-top:28px}
+  .sec-head{display:flex; align-items:center; gap:12px; font-size:19px; font-weight:700; margin-bottom:16px}
+  .sec-head .idx{
+    width:30px; height:30px; flex:0 0 30px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; font-size:14px; color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+  }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px}
+
+  /* goals */
+  .goals{display:grid; gap:10px; margin:0}
+  .goals li{
+    list-style:none; display:flex; gap:10px; align-items:flex-start;
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14.5px;
+  }
+  .goals li::before{content:"✔"; color:var(--ok); font-weight:700}
+
+  /* knowledge */
+  .know{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .know-title{font-size:16px; font-weight:700; margin-bottom:6px; color:#cdd9f7}
+  .know-body{color:#cdd6ea; font-size:14.5px}
+  .code{
+    margin-top:12px; background:#0a0f1d; border:1px solid #22304d; border-radius:10px;
+    padding:14px 16px; overflow-x:auto; font-size:13px; line-height:1.6;
+    font-family:"Cascadia Code",Consolas,monospace; color:#a8e6cf;
+  }
+  .code code{font-family:inherit}
+
+  /* flow */
+  .flow{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
+  .flow-step{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .flow-num{width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(91,140,255,.18); color:#9db8ff; font-size:13px; font-weight:700; margin-bottom:8px}
+  .flow-step b{font-size:14px}
+  .flow-step p{color:var(--muted); font-size:12.5px; margin-top:4px}
+
+  /* glossary */
+  .gloss{display:flex; gap:12px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:10px; background:var(--panel2); font-size:14px}
+  .gloss-term{flex:0 0 200px; color:var(--warn); font-weight:700; font-family:"Cascadia Code",Consolas,monospace; font-size:13.5px}
+  @media(max-width:640px){.gloss-term{flex-basis:120px}}
+
+  /* quiz */
+  .quiz-item{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .quiz-q{font-size:15.5px; font-weight:600; margin-bottom:12px}
+  .quiz-q span{color:var(--accent)}
+  .quiz-opts{display:grid; gap:8px}
+  .quiz-opt{
+    display:flex; align-items:center; gap:12px; text-align:left;
+    background:#141c31; color:var(--text); border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px; cursor:pointer; font-size:14px; transition:.15s;
+    font-family:inherit;
+  }
+  .quiz-opt:hover{border-color:var(--accent); background:#1a2440}
+  .quiz-opt .opt-key{
+    width:24px; height:24px; flex:0 0 24px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:7px; font-size:12px; color:var(--muted); font-weight:700;
+  }
+  .quiz-opt.correct{border-color:var(--ok); background:rgba(62,207,142,.1)}
+  .quiz-opt.correct .opt-key{background:var(--ok); color:#06281a; border-color:var(--ok)}
+  .quiz-opt.wrong{border-color:var(--bad); background:rgba(255,93,108,.1)}
+  .quiz-opt.wrong .opt-key{background:var(--bad); color:#2c0810; border-color:var(--bad)}
+  .quiz-opt:disabled{cursor:default; opacity:.85}
+  .quiz-feedback{margin-top:12px; display:flex; gap:10px; align-items:flex-start}
+  .quiz-feedback .fb-icon{font-size:18px; line-height:1.4}
+  .quiz-feedback .fb-text{font-size:14px; color:#cdd6ea}
+  .quiz-feedback.correct{color:var(--ok); border:1px solid rgba(62,207,142,.4); background:rgba(62,207,142,.07); padding:10px 14px; border-radius:10px}
+  .quiz-feedback.wrong{color:var(--bad); border:1px solid rgba(255,93,108,.4); background:rgba(255,93,108,.07); padding:10px 14px; border-radius:10px}
+  .hidden{display:none}
+  .quiz-bar{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px}
+  .quiz-bar .score{font-size:14px; color:var(--muted)}
+  .quiz-bar .score b{color:var(--text)}
+  .btn-reset{
+    background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer;
+    padding:7px 14px; border-radius:10px; font-size:13px; transition:.15s; font-family:inherit;
+  }
+  .btn-reset:hover{color:var(--text); border-color:var(--accent)}
+
+  /* review */
+  .review-list{list-style:none; display:grid; gap:10px}
+  .review-list li{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:11px 16px; font-size:14px; display:flex; gap:10px}
+  .review-list li::before{content:"▶"; color:var(--accent); font-size:12px}
+
+  /* nav */
+  .nav{margin-top:34px; display:flex; justify-content:space-between; gap:10px}
+  .nav-btn{
+    padding:11px 18px; border-radius:12px; border:1px solid var(--line); background:var(--panel2);
+    color:var(--text); font-size:14px; transition:.15s;
+  }
+  .nav-btn:hover{border-color:var(--accent); text-decoration:none; background:#1c2745}
+  .nav-btn.disabled{opacity:.4; cursor:default; color:var(--muted)}
+  footer{margin-top:40px; text-align:center; color:#5d6b8a; font-size:12.5px; border-top:1px solid var(--line); padding-top:18px}
+
+  .to-top{
+    position:fixed; right:22px; bottom:22px; width:44px; height:44px; border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); transition:.2s; z-index:50;
+  }
+  .to-top:hover{transform:translateY(-3px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="badge-row">
+      <span class="badge ch">第 十五 章</span>
+      <span class="badge">Agent 架构实操</span>
+      <span class="badge">深入学习 · 交互式</span>
+      <span class="badge">含 QA 测试</span>
+    </div>
+    <h1 class="top-title">解密 Claude Code 协作机制：如何通过 Inbox 注入让 AI 队友真正实现“异步通信”</h1>
+    <div class="tagline">💡 持续 Teammate + 持久 Mailbox + typed event 进入唯一 Loop。</div>
+    <div class="overview">有些工作不是问答：队友需要保留历史、接收补充、异步汇报、完成后继续存在。本章实现持续 Teammate、持久 Mailbox，以及把 Mailbox 消息送入公共 Loop 的 typed event 通道。</div>
+  </header>
+
+  <div class="progress">
+    <div class="progress-row">
+      <span style="font-size:13px;color:var(--muted)">本章进度</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-txt" id="progressTxt">0%</span>
+    </div>
+    <div class="chips"><a href="第一章deepseek生成.html" title="Agent Loop：一个循环，就是模型与真实世界之间的全部距离">1</a><a href="第二章deepseek生成.html" title="给 Agent 加一个工具，只需要加一行">2</a><a href="第三章deepseek生成.html" title="深度拆解复刻 Claude Code 权限系统">3</a><a href="第四章deepseek生成.html" title="顶级 AI Agent 是如何利用 Hook 解耦的">4</a><a href="第五章deepseek生成.html" title="为什么上下文越长，系统提示词越没用">5</a><a href="第六章deepseek生成.html" title="从“单兵死磕”到“分身协作”：复杂任务下 AI Agent 的工程化突围">6</a><a href="第七章deepseek生成.html" title="别再硬塞 Prompt 了！手把手教你搭建一套工业级的 Agent Skill 技能系统">7</a><a href="第八章deepseek生成.html" title="拆解复刻 Claude Code 核心设计：四级压缩法干掉上下文膨胀">8</a><a href="第九章deepseek生成.html" title="从上下文压缩到文件级持久化：彻底解决 AI Agent 的健忘症">9</a><a href="第十章deepseek生成.html" title="从“一锅炖”到“模块化”：重塑 AI Agent 的逻辑骨架">10</a><a href="第十一章deepseek生成.html" title="API 韧性即生命：决定 AI Agent 商业化成败的隐藏细节">11</a><a href="第十二章deepseek生成.html" title="实战干货：5 个工具、3 个状态，带你撸出一个生产级 Agent 任务引擎">12</a><a href="第十三章deepseek生成.html" title="从串行到异步：AI Agent 架构演进中的“慢操作”填坑指南">13</a><a href="第十四章deepseek生成.html" title="让 Agent 学会看表：Cron 调度器的设计与实现">14</a><a class='active' href="第十五章deepseek生成.html" title="解密 Claude Code 协作机制：如何通过 Inbox 注入让 AI 队友真正实现“异步通信”">15</a><a href="第十六章deepseek生成.html" title="从“单兵作战”到“自组织团队”，多 Agent 协同的必经之路">16</a><a href="第十七章deepseek生成.html" title="从“人肉派发”到“自驱轮询”：多智能体（Agent Team）去中心化协作实战">17</a><a href="第十八章deepseek生成.html" title="多 Agent 并行开发时的文件冲突，到底该怎么解">18</a><a href="第十九章deepseek生成.html" title="从静态工具到动态工具池：一次 MCP 接入让我重构了 Agent 架构">19</a><a href="第二十章deepseek生成.html" title="Agent 架构设计：工具调用、权限控制、记忆机制、上下文压缩与 MCP 集成">20</a></div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="idx">1</span> 本章要掌握的目标</div>
+    <div class="panel"><ul class="goals"><li>Lead 只增加 spawn_teammate / send_message 两个工具，无 check_inbox。</li><li>MailboxMessage kind：task / message / result，同时实现 RuntimeEvent。</li><li>每消息一个文件，目录表达状态 ready/processing/done/quarantine。</li><li>投递至少一次、稳定 ID 幂等；处理 before ack，先写 canonical history 再 ack。</li><li>队友每名持有独立可复用的 Runner，状态 running/idle/failed/shutdown。</li></ul></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">2</span> 核心知识点</div>
+    <div class="panel"><div class="know" style="--i:0">
+        <div class="know-title">协作不是多开模型调用</div>
+        <p class="know-body">一次性子 Agent 与持续队友的差别在身份、历史、通信和生命周期由谁持有。</p>
+        <pre class="code"><code>生命周期  一次性：完成返回 | 队友：完成进 idle 可续收
+对话历史  每次独立      | 每个名字绑定独立 AgentRunner 复用
+通信     返回最终结果   | 持久 Mailbox 双向文本</code></pre>
+      </div><div class="know" style="--i:1">
+        <div class="know-title">Mailbox：每消息一文件，状态由目录表达</div>
+        <p class="know-body">send 先写临时文件并 fsync，再 os.replace 提交到 ready；claim 用文件锁原子 rename ready→processing；ack 用 processing→done；quarantine 隔离坏消息。</p>
+        <pre class="code"><code>.agent_tutorial/mailboxes/
+  lead/   ready/ processing/ done/ quarantine/
+  alice/  ready/ processing/ done/ quarantine/
+ready/{id}.json --os.replace--&gt; processing/{id}.json
+processing/{id}.json --os.replace--&gt; done/{id}.json</code></pre>
+      </div><div class="know" style="--i:2">
+        <div class="know-title">FIFO、恢复与坏消息隔离</div>
+        <p class="know-body">权威 FIFO 键是 (created_at_utc, id)。processing 在重启恢复到 ready（至少一次投递）；坏消息逐个移入 quarantine 并继续。</p>
+        <pre class="code"><code>权威顺序: (created_at_utc, id)
+重启:  processing -&gt; ready -&gt; 再次 claim（至少一次）
+坏消息: 校验失败 -&gt; 原子移入 quarantine，继续找下一条</code></pre>
+      </div><div class="know" style="--i:3">
+        <div class="know-title">TeammateRuntime：一个名字一个 Runner</div>
+        <p class="know-body">spawn 不等待完成。worker claim 后调用自己的 AgentRunner.run(content, { idempotencyKey: current.id })。完成一轮进 idle 不销毁 Runner；后续消息复用原 Runner 与历史。</p>
+        <pre class="code"><code>spawn: running
+一轮完成: idle
+收到新消息: running
+再次完成: idle
+执行异常: failed
+runtime close 完成: shutdown</code></pre>
+      </div><div class="know" style="--i:4">
+        <div class="know-title">Inbox 注入：先进 history 再 ack</div>
+        <p class="know-body">队友消息从 ready claim 到 processing → 发布到 EventInbox → Loop 空闲执行 event-only turn → 先追加 canonical history → 再 ack（processing→done）。ack 失败会重发但 Runner 记住 event_id 不重复追加。</p>
+        <pre class="code"><code>EventInbox drain
+  → 校验稳定 event_id
+  → 追加到 Lead canonical history
+  → TeammateRuntime.acknowledge_events()
+  → Mailbox processing -&gt; done
+  → 模型执行这一条 event turn</code></pre>
+      </div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">3</span> 机制流程</div>
+    <div class="panel"><div class="flow"><div class="flow-step"><span class="flow-num">1</span><div><b>spawn_teammate</b><p>创建独立 Runner，把首个 task 消息持久写入队友 Mailbox，异步启动 worker。</p></div></div><div class="flow-step"><span class="flow-num">2</span><div><b>worker claim</b><p>ready→processing，用消息 ID 作 idempotencyKey 运行。</p></div></div><div class="flow-step"><span class="flow-num">3</span><div><b>完成后发 result</b><p>把结果写到 lead/ready，ack 当前输入，进 idle。</p></div></div><div class="flow-step"><span class="flow-num">4</span><div><b>Lead event turn</b><p>claim lead 消息 → 进 history → ack → 模型决策。</p></div></div><div class="flow-step"><span class="flow-num">5</span><div><b>send_message</b><p>向已存在队友（或 Lead）投递后续文本，复用原 Runner。</p></div></div></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">4</span> 术语表</div>
+    <div class="panel"><div class="gloss"><span class="gloss-term">MailboxMessageKind</span>task / message / result 三种。</div><div class="gloss"><span class="gloss-term">processing → ready</span>重启恢复路径，保证至少一次投递。</div><div class="gloss"><span class="gloss-term">quarantine</span>坏消息隔离，不阻塞合法消息。</div><div class="gloss"><span class="gloss-term">idempotencyKey</span>消息稳定 UUID，作为本轮工具上下文。</div><div class="gloss"><span class="gloss-term">至少一次</span>可重放但不可静默丢失；稳定 ID 去重。</div></div>
+  </section>
+
+  <section id="quiz">
+    <div class="sec-head"><span class="idx">5</span> QA 测试环节（自测题）</div>
+    <div class="panel">
+      <div class="quiz-bar">
+        <span class="score">已完成 <b id="doneCount">0</b> / 6 · 答对 <b id="correctCount">0</b></span>
+        <button type="button" class="btn-reset" id="resetBtn">↺ 重新开始</button>
+      </div>
+      <div id="quizList"><div class="quiz-item" data-answer="1" data-index="0">
+        <div class="quiz-q"><span>Q1.</span> P15 的 Lead 是否提供 check_inbox？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>是</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>否；Mailbox 是运行时事件源，消息由 TeammateRuntime 发布到 EventInbox</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>可选</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>由模型查</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="1">
+        <div class="quiz-q"><span>Q2.</span> 消息的权威 FIFO 顺序是？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>按文件名 UUID 字典序</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>(created_at_utc, id)</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>按到达时间</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>随机</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="2">
+        <div class="quiz-q"><span>Q3.</span> ack 的含义是？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>外部副作用完成</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>事件已从 outbox/processing 移除并进入 done；副作用去重靠稳定 ID</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>消息删除</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>任务完成</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="3">
+        <div class="quiz-q"><span>Q4.</span> cron / mailbox / background 的事件进入哪里？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>各自独立队列</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>共享同一个 typed EventInbox，由各自 owner 确认</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>都会进 tool 消息</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>都不进 Loop</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="4">
+        <div class="quiz-q"><span>Q5.</span> close 时正在执行的队友会？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>直接被 kill</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>cancel/await 在途 task，release processing 消息，保留重放</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>保留 running 永远</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>自动完成</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="5">
+        <div class="quiz-q"><span>Q6.</span> 队友工具集是？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>与 Lead 完全相同</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>shell / read_file / write_file / send_message（无 edit/glob/TODO/task）</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>全部内置</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>只有 send_message</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">6</span> 验证与实验</div>
+    <div class="panel"><ul class="review-list"><li>npm run test:ch15 五组聚焦测试覆盖 store、持续队友、event turn、组合根与入口。</li><li>验证 FIFO、同名 spawn 只一次、先 history 后 ack、cache 失败不重复。</li><li>npm run ch15 -- --prompt &quot;创建一名 writer 队友，让她阅读 README 并汇报缺口&quot;</li></ul></div>
+  </section>
+
+  <nav class="nav"><a class="nav-btn" href="第十四章deepseek生成.html">← 上一章 第十四章</a> <a class="nav-btn" href="第十六章deepseek生成.html">第十六章 →</a></nav>
+
+  <footer>交互式学习页 · 由教程文档生成 · 第 十五 章 · 含 6 道自测题</footer>
+</div>
+
+<button class="to-top" id="toTop" title="回到顶部">↑</button>
+
+<script>
+(function () {
+  const total = 6;
+  const doneKey = "quiz_done_" + 15;
+  const correctKey = "quiz_correct_" + 15;
+  const pickedKey = "quiz_picked_" + 15;
+
+  function load(name) { try { return JSON.parse(localStorage.getItem(name) || "null"); } catch { return null; } }
+  function save(name, val) { try { localStorage.setItem(name, JSON.stringify(val)); } catch {} }
+
+  let done = load(doneKey) || 0;
+  let correct = load(correctKey) || 0;
+  let picked = load(pickedKey) || {};
+
+  // --- 进度 ---
+  function updateProgress() {
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const fill = document.getElementById("progressFill");
+    const txt = document.getElementById("progressTxt");
+    if (fill) fill.style.width = pct + "%";
+    if (txt) txt.textContent = pct + "%";
+    const dc = document.getElementById("doneCount");
+    const cc = document.getElementById("correctCount");
+    if (dc) dc.textContent = done;
+    if (cc) cc.textContent = correct;
+  }
+
+  // --- 给每个题目的选项绑定事件 ---
+  document.querySelectorAll(".quiz-item").forEach(function (item) {
+    const qi = item.getAttribute("data-index");
+    const answer = Number(item.getAttribute("data-answer"));
+    const opts = item.querySelectorAll(".quiz-opt");
+
+    function reveal(selectedIndex) {
+      opts.forEach(function (opt, oi) {
+        opt.disabled = true;
+        if (oi === answer) opt.classList.add("correct");
+        else if (oi === selectedIndex) opt.classList.add("wrong");
+      });
+
+      const fb = item.querySelector(".quiz-feedback");
+      const why = ["Lead 不靠模型猜测何时拉取消息。","先比较 UTC 创建时间，相同时用规范 UUID 打破平局。","ack 只确认投递消费；外部副作用仍需实现幂等。","共享一条 typed FIFO，各自认领自己的事件。","释放 processing 回 ready，保留可在下次重放。","结构固定为一个 Lead 加多个平级队友，队友不能生成队友。"][qi];
+      const isCorrect = selectedIndex === answer;
+      fb.classList.remove("hidden", "correct", "wrong");
+      fb.classList.add(isCorrect ? "correct" : "wrong");
+      fb.innerHTML =
+        '<div class="fb-icon">' + (isCorrect ? "✅" : "❌") + "</div>" +
+        '<div class="fb-text"><b>' + (isCorrect ? "回答正确！" : "回答错误") + "</b><br><span style='color:var(--muted);font-size:13px'>解析：" + (why || "") + "</span></div>";
+    }
+
+    opts.forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        const oi = Number(opt.getAttribute("data-oi"));
+        if (picked[qi] !== undefined) return; // 已作答
+        picked[qi] = oi;
+        save(pickedKey, picked);
+        done += 1;
+        if (oi === answer) correct += 1;
+        save(doneKey, done);
+        save(correctKey, correct);
+        reveal(oi);
+        updateProgress();
+      });
+    });
+
+    // 若是切换页面回来，恢复已显示的状态
+    if (picked[qi] !== undefined) {
+      opts.forEach(function (opt, oi) {
+        if (oi === picked[qi]) {
+          opt.click(); // 触发一次以显示反馈（对答案时正确/错误会计算，但因 picked 已存在而不再重复计数）
+        }
+      });
+    }
+  });
+
+  // 恢复已作答（直接渲染反馈，不重复计数）
+  (function restore() {
+    document.querySelectorAll(".quiz-item").forEach(function (item) {
+      const qi = item.getAttribute("data-index");
+      const answer = Number(item.getAttribute("data-answer"));
+      const sel = picked[qi];
+      if (sel === undefined) return;
+      const opts = item.querySelectorAll(".quiz-opt");
+      const fb = item.querySelector(".quiz-feedback");
+      const why = ["Lead 不靠模型猜测何时拉取消息。","先比较 UTC 创建时间，相同时用规范 UUID 打破平局。","ack 只确认投递消费；外部副作用仍需实现幂等。","共享一条 typed FIFO，各自认领自己的事件。","释放 processing 回 ready，保留可在下次重放。","结构固定为一个 Lead 加多个平级队友，队友不能生成队友。"][qi];
+      const isCorrect = sel === answer;
+      opts.forEach(function (opt, oi) {
+        opt.disabled = true;
+        if (oi === answer) opt.classList.add("correct");
+        else if (oi === sel) opt.classList.add("wrong");
+      });
+      fb.classList.remove("hidden", "correct", "wrong");
+      fb.classList.add(isCorrect ? "correct" : "wrong");
+      fb.innerHTML =
+        '<div class="fb-icon">' + (isCorrect ? "✅" : "❌") + "</div>" +
+        '<div class="fb-text"><b>' + (isCorrect ? "回答正确！" : "回答错误") + "</b><br><span style='color:var(--muted);font-size:13px'>解析：" + (why || "") + "</span></div>";
+    });
+    updateProgress();
+  })();
+
+  // --- 重置 ---
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (!confirm("确定要清空本章的答题记录并重新开始吗？")) return;
+    done = 0; correct = 0; picked = {};
+    save(doneKey, done); save(correctKey, correct); save(pickedKey, picked);
+    location.reload();
+  });
+
+  // --- 回到顶部 ---
+  const toTop = document.getElementById("toTop");
+  toTop.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+
+  updateProgress();
+})();
+</script>
+</body>
+</html>

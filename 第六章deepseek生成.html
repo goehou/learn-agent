@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第六章 从“单兵死磕”到“分身协作”：复杂任务下 AI Agent 的工程化突围 （Agent架构实操）</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#131a2e; --panel2:#1a2338; --line:#2a3550;
+    --text:#e8edf7; --muted:#9aa7c2; --accent:#5b8cff; --accent2:#8b5bff;
+    --ok:#3ecf8e; --bad:#ff5d6c; --warn:#ffc24b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.16), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(139,91,255,.14), transparent 55%),
+      var(--bg);
+    color:var(--text); line-height:1.7; min-height:100vh;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1060px; margin:0 auto; padding:28px 20px 80px}
+
+  /* header */
+  header.top{
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:linear-gradient(135deg,#151d33,#101527);
+    padding:28px 30px; position:relative; overflow:hidden;
+  }
+  .badge-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px}
+  .badge{
+    font-size:12px; padding:3px 10px; border-radius:20px; letter-spacing:.5px;
+    background:rgba(91,140,255,.12); color:#9db8ff; border:1px solid rgba(91,140,255,.35);
+  }
+  .badge.ch{border-color:rgba(139,91,255,.5); color:#c3abff; background:rgba(139,91,255,.14)}
+  h1.top-title{font-size:clamp(20px,3vw,28px); line-height:1.45; margin-bottom:10px}
+  .tagline{color:var(--muted); font-size:15px}
+  .overview{margin-top:16px; background:rgba(0,0,0,.18); border-left:3px solid var(--accent); padding:12px 16px; border-radius:8px; color:#cdd6ea; font-size:14.5px}
+
+  /* progress */
+  .progress{border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin:18px 0; background:var(--panel)}
+  .progress-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .progress-bar{flex:1 1 220px; height:8px; border-radius:6px; background:#25314f; overflow:hidden}
+  .progress-fill{height:100%; width:0%; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .5s ease}
+  .progress-txt{font-size:13px; color:var(--muted)}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px}
+  .chips a{
+    width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:8px; font-size:12px; color:var(--muted);
+  }
+  .chips a.active{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border-color:transparent; font-weight:700}
+  .chips a:hover{color:var(--text); border-color:var(--accent)}
+
+  /* section */
+  section{margin-top:28px}
+  .sec-head{display:flex; align-items:center; gap:12px; font-size:19px; font-weight:700; margin-bottom:16px}
+  .sec-head .idx{
+    width:30px; height:30px; flex:0 0 30px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; font-size:14px; color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+  }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px}
+
+  /* goals */
+  .goals{display:grid; gap:10px; margin:0}
+  .goals li{
+    list-style:none; display:flex; gap:10px; align-items:flex-start;
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14.5px;
+  }
+  .goals li::before{content:"✔"; color:var(--ok); font-weight:700}
+
+  /* knowledge */
+  .know{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .know-title{font-size:16px; font-weight:700; margin-bottom:6px; color:#cdd9f7}
+  .know-body{color:#cdd6ea; font-size:14.5px}
+  .code{
+    margin-top:12px; background:#0a0f1d; border:1px solid #22304d; border-radius:10px;
+    padding:14px 16px; overflow-x:auto; font-size:13px; line-height:1.6;
+    font-family:"Cascadia Code",Consolas,monospace; color:#a8e6cf;
+  }
+  .code code{font-family:inherit}
+
+  /* flow */
+  .flow{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
+  .flow-step{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .flow-num{width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(91,140,255,.18); color:#9db8ff; font-size:13px; font-weight:700; margin-bottom:8px}
+  .flow-step b{font-size:14px}
+  .flow-step p{color:var(--muted); font-size:12.5px; margin-top:4px}
+
+  /* glossary */
+  .gloss{display:flex; gap:12px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:10px; background:var(--panel2); font-size:14px}
+  .gloss-term{flex:0 0 200px; color:var(--warn); font-weight:700; font-family:"Cascadia Code",Consolas,monospace; font-size:13.5px}
+  @media(max-width:640px){.gloss-term{flex-basis:120px}}
+
+  /* quiz */
+  .quiz-item{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .quiz-q{font-size:15.5px; font-weight:600; margin-bottom:12px}
+  .quiz-q span{color:var(--accent)}
+  .quiz-opts{display:grid; gap:8px}
+  .quiz-opt{
+    display:flex; align-items:center; gap:12px; text-align:left;
+    background:#141c31; color:var(--text); border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px; cursor:pointer; font-size:14px; transition:.15s;
+    font-family:inherit;
+  }
+  .quiz-opt:hover{border-color:var(--accent); background:#1a2440}
+  .quiz-opt .opt-key{
+    width:24px; height:24px; flex:0 0 24px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:7px; font-size:12px; color:var(--muted); font-weight:700;
+  }
+  .quiz-opt.correct{border-color:var(--ok); background:rgba(62,207,142,.1)}
+  .quiz-opt.correct .opt-key{background:var(--ok); color:#06281a; border-color:var(--ok)}
+  .quiz-opt.wrong{border-color:var(--bad); background:rgba(255,93,108,.1)}
+  .quiz-opt.wrong .opt-key{background:var(--bad); color:#2c0810; border-color:var(--bad)}
+  .quiz-opt:disabled{cursor:default; opacity:.85}
+  .quiz-feedback{margin-top:12px; display:flex; gap:10px; align-items:flex-start}
+  .quiz-feedback .fb-icon{font-size:18px; line-height:1.4}
+  .quiz-feedback .fb-text{font-size:14px; color:#cdd6ea}
+  .quiz-feedback.correct{color:var(--ok); border:1px solid rgba(62,207,142,.4); background:rgba(62,207,142,.07); padding:10px 14px; border-radius:10px}
+  .quiz-feedback.wrong{color:var(--bad); border:1px solid rgba(255,93,108,.4); background:rgba(255,93,108,.07); padding:10px 14px; border-radius:10px}
+  .hidden{display:none}
+  .quiz-bar{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px}
+  .quiz-bar .score{font-size:14px; color:var(--muted)}
+  .quiz-bar .score b{color:var(--text)}
+  .btn-reset{
+    background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer;
+    padding:7px 14px; border-radius:10px; font-size:13px; transition:.15s; font-family:inherit;
+  }
+  .btn-reset:hover{color:var(--text); border-color:var(--accent)}
+
+  /* review */
+  .review-list{list-style:none; display:grid; gap:10px}
+  .review-list li{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:11px 16px; font-size:14px; display:flex; gap:10px}
+  .review-list li::before{content:"▶"; color:var(--accent); font-size:12px}
+
+  /* nav */
+  .nav{margin-top:34px; display:flex; justify-content:space-between; gap:10px}
+  .nav-btn{
+    padding:11px 18px; border-radius:12px; border:1px solid var(--line); background:var(--panel2);
+    color:var(--text); font-size:14px; transition:.15s;
+  }
+  .nav-btn:hover{border-color:var(--accent); text-decoration:none; background:#1c2745}
+  .nav-btn.disabled{opacity:.4; cursor:default; color:var(--muted)}
+  footer{margin-top:40px; text-align:center; color:#5d6b8a; font-size:12.5px; border-top:1px solid var(--line); padding-top:18px}
+
+  .to-top{
+    position:fixed; right:22px; bottom:22px; width:44px; height:44px; border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); transition:.2s; z-index:50;
+  }
+  .to-top:hover{transform:translateY(-3px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="badge-row">
+      <span class="badge ch">第 六 章</span>
+      <span class="badge">Agent 架构实操</span>
+      <span class="badge">深入学习 · 交互式</span>
+      <span class="badge">含 QA 测试</span>
+    </div>
+    <h1 class="top-title">从“单兵死磕”到“分身协作”：复杂任务下 AI Agent 的工程化突围</h1>
+    <div class="tagline">💡 新增 task 工具：一次性 Subagent，隔离历史，共享运行边界。</div>
+    <div class="overview">把一个自包含子任务交给一次性 Subagent，让它从全新历史开始探索。父 Agent 最后只接收一句有证据的结论。历史隔离不等于沙箱：父子共享同一进程、Hook、权限、workspace 和 identity。</div>
+  </header>
+
+  <div class="progress">
+    <div class="progress-row">
+      <span style="font-size:13px;color:var(--muted)">本章进度</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-txt" id="progressTxt">0%</span>
+    </div>
+    <div class="chips"><a href="第一章deepseek生成.html" title="Agent Loop：一个循环，就是模型与真实世界之间的全部距离">1</a><a href="第二章deepseek生成.html" title="给 Agent 加一个工具，只需要加一行">2</a><a href="第三章deepseek生成.html" title="深度拆解复刻 Claude Code 权限系统">3</a><a href="第四章deepseek生成.html" title="顶级 AI Agent 是如何利用 Hook 解耦的">4</a><a href="第五章deepseek生成.html" title="为什么上下文越长，系统提示词越没用">5</a><a class='active' href="第六章deepseek生成.html" title="从“单兵死磕”到“分身协作”：复杂任务下 AI Agent 的工程化突围">6</a><a href="第七章deepseek生成.html" title="别再硬塞 Prompt 了！手把手教你搭建一套工业级的 Agent Skill 技能系统">7</a><a href="第八章deepseek生成.html" title="拆解复刻 Claude Code 核心设计：四级压缩法干掉上下文膨胀">8</a><a href="第九章deepseek生成.html" title="从上下文压缩到文件级持久化：彻底解决 AI Agent 的健忘症">9</a><a href="第十章deepseek生成.html" title="从“一锅炖”到“模块化”：重塑 AI Agent 的逻辑骨架">10</a><a href="第十一章deepseek生成.html" title="API 韧性即生命：决定 AI Agent 商业化成败的隐藏细节">11</a><a href="第十二章deepseek生成.html" title="实战干货：5 个工具、3 个状态，带你撸出一个生产级 Agent 任务引擎">12</a><a href="第十三章deepseek生成.html" title="从串行到异步：AI Agent 架构演进中的“慢操作”填坑指南">13</a><a href="第十四章deepseek生成.html" title="让 Agent 学会看表：Cron 调度器的设计与实现">14</a><a href="第十五章deepseek生成.html" title="解密 Claude Code 协作机制：如何通过 Inbox 注入让 AI 队友真正实现“异步通信”">15</a><a href="第十六章deepseek生成.html" title="从“单兵作战”到“自组织团队”，多 Agent 协同的必经之路">16</a><a href="第十七章deepseek生成.html" title="从“人肉派发”到“自驱轮询”：多智能体（Agent Team）去中心化协作实战">17</a><a href="第十八章deepseek生成.html" title="多 Agent 并行开发时的文件冲突，到底该怎么解">18</a><a href="第十九章deepseek生成.html" title="从静态工具到动态工具池：一次 MCP 接入让我重构了 Agent 架构">19</a><a href="第二十章deepseek生成.html" title="Agent 架构设计：工具调用、权限控制、记忆机制、上下文压缩与 MCP 集成">20</a></div>
+  </div>
+
+  
+  <section>
+    <div class="sec-head"><span class="idx">1</span> 本章导读与学习目标</div>
+    <div class="panel"><ul class="goals"><li>说清「委派」里隔离的到底是什么：只有消息历史和工具注册表，其他全部共享。</li><li>写一个自包含的 task 工具：description 让子 Agent 不靠父 history 也能独立完成任务。</li><li>说出父 history 在委派后只多哪三条消息，以及为什么子 Agent 的推理过程无法审计。</li><li>解释为什么必须禁止递归委派（三层防线），以及子 Agent 跑满 30 轮返回什么。</li><li>跑通第 6 章：让父 Agent 委派一个子 Agent 干一件事，再自己给结论。</li></ul>
+
+      <table class="dtable">
+        <tr><th style="width:30%">你需要先具备</th><th>说明</th></tr>
+        <tr><td>读完第 1—5 章</td><td>会看 AgentRunner、Hook、权限、tool 注册即可</td></tr>
+        <tr><td>多 Agent 概念</td><td>不需要。本章就是第一次引入「子 Agent」</td></tr>
+      </table>
+
+      <div class="code"><code>本章导读（你在这）
+  ↓
+① 先看一眼一次真实的委派    ← 子 Agent 干活的完整日志
+  ↓
+② 这章解决什么问题          ← 上下文隔离,不是沙箱
+  ↓
+③ 严格的 task 输入          ← 自包含 description
+  ↓
+④ SubagentTool = 执行边界    ← 复用同一个 AgentRunner
+  ↓
+⑤ 历史隔离 + 边界共享        ← 三、四
+  ↓
+⑥ 禁止递归委派              ← 三层防线
+  ↓
+⑦ 30 轮上限 + 脱敏错误       ← 六
+  ↓
+⑧ 组合根 + 离线证明          ← 七、八
+  ↓
+⑨ 运行 + 实验 + 差异 + 小结   ← 九~十一</code></div>
+      <div class="note"><span class="lab">最该记住的一句</span>委派不创造新路径：子 Agent 该弹的审批照样弹，该拦的越界照样拦。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">2</span> 术语速查（本章第一次出现的词）</div>
+    <div class="panel">
+      <div class="gloss"><span class="gloss-term">委派（task）</span>把一段自包含探索交给独立子 Agent，只拿回一句结论。</div>
+      <div class="gloss"><span class="gloss-term">SubagentTool</span>执行边界的实现：复用同一个 AgentRunner 跑一次内部 run()。</div>
+      <div class="gloss"><span class="gloss-term">自包含 description</span>子 Agent 只能看到 description，看不到父 history，所以描述必须完整。</div>
+      <div class="gloss"><span class="gloss-term">历史隔离</span>父与子各有一份独立 #history，互不可见。</div>
+      <div class="gloss"><span class="gloss-term">边界共享</span>Hook、权限、workspace、identity、进程全部共享一个实例。</div>
+      <div class="gloss"><span class="gloss-term">递归委派</span>子 Agent 自己再调 task。三层防线禁止。</div>
+      <div class="gloss"><span class="gloss-term">evidence-based 结论</span>因为子推理不可审计，所以要求子 Agent 给出有文件证据的结论。</div>
+      <div class="gloss"><span class="gloss-term">subagent_turn_limit</span>子 Agent 跑满 30 轮返回的结构化错误码。</div>
+      <div class="gloss"><span class="gloss-term">subagent_configuration_error</span>子工具集非法（例如包含 task）时的错误码。</div>
+      <div class="gloss"><span class="gloss-term">toolRoundObserver</span>父挂的「计划陈旧提醒」观察器；子 Agent 刻意没挂。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">3</span> 核心知识点</div>
+    <div class="panel"><div class="know" style="--i:0">
+        <div class="know-title">这章解决什么问题：上下文隔离</div>
+        <p class="know-body">大任务塞进单一上下文会让模型注意力涣散。委派 = 把一段自包含探索搬到<b>全新历史</b>里跑（干净上下文），父 Agent 只拿回一句结论。注意：<b>「隔离」= 上下文隔离，不是沙箱、不是提权、不是降权</b>。子 Agent 与父共享 workspace、身份、权限和进程。</p>
+        <div class="note"><span class="lab">子 Agent 写文件还在吗</span>在。因为它和父共享同一个 workspace 和文件系统，task 返回后文件还在磁盘上。</div>
+      </div><div class="know" style="--i:1">
+        <div class="know-title">一 · 严格的 task 输入</div>
+        <p class="know-body">只有一个入参：<code>description</code>（自包含任务描述）。它必须完整——因为<b>子 Agent 看不到父 history</b>，它只能靠这句话独立干活。描述里该带路径、该带验收标准、该带返回格式要求。</p>
+        <pre class="code"><code>{\"description\": \"检查本项目用的测试框架:读 package.json、找到测试目录...\"}</code></pre>
+      </div><div class="know" style="--i:2">
+        <div class="know-title">二 · SubagentTool 只负责执行边界</div>
+        <p class="know-body">SubagentTool 不是第二套 Loop——它<b>复用同一个 AgentRunner</b>，对同一个 context 跑一次内部 run()。只是这个内部 run 用的是全新 history 和子工具集。父 history 极少被触碰。</p>
+      </div><div class="know" style="--i:3">
+        <div class="know-title">三 · 父 history 为什么保持干净</div>
+        <p class="know-body">父调用一次 task，父 history 只多三条消息：<code>assistant(task)</code> → <code>tool(结论)</code> → <code>assistant(最终回答)</code>。子 Agent 的完整推理过程<b>不</b>进父历史——代价是子推理无法审计，所以要求 evidence-based 结论（子 Agent 必须引用文件做证据）。</p>
+      </div><div class="know" style="--i:4">
+        <div class="know-title">四 · 历史隔离，运行边界共享</div>
+        <table class="dtable">
+          <tr><th>隔离</th><th>共享（同一个实例）</th></tr>
+          <tr><td>消息历史 #history</td><td>HookRegistry（日志因此分不清父子）</td></tr>
+          <tr><td>工具注册表 / 子工具集</td><td>PermissionPolicy、workspace、identity、进程</td></tr>
+        </table>
+        <p class="know-body">共享意味着子 Agent <b>没有豁免</b>：它的工具调用照样打 hook 日志、照样过权限、越界照样被硬边界 deny。审批框上不标注「这是子 Agent 发起的」——因为父子共享 identity。</p>
+      </div><div class="know" style="--i:5">
+        <div class="know-title">五 · 为什么必须禁止递归委派</div>
+        <p class="know-body">三层防线保证子 Agent 不可能再调 task：① 提示层：子 system 明确禁止；② 工厂层：子工具集构建时剔除 task；③ 运行时：即使模型自己生成了 task 调用，也返回 <code>subagent_configuration_error</code>。第三层保证「模型零调用」——子 Agent 压根没被创建，模型请求次数只有父那一次。</p>
+      </div><div class="know" style="--i:6">
+        <div class="know-title">六 · 30 轮上限和脱敏错误</div>
+        <p class="know-body">子 Agent 有独立 maxTurns=30，构造期校验（&gt;30 直接拒绝启动）。跑满轮数返回结构化错误 <code>Error [subagent_turn_limit]</code>，<b>绝不把最后一个工具输出冒充结论</b>。父历史仍保持「一条 tool 消息」的整洁。</p>
+        <pre class="code"><code>// 子 Agent 异常/超限 → 结构化 ToolResult,不污染父 Loop</code></pre>
+      </div><div class="know" style="--i:7">
+        <div class="know-title">七 · 组合根：如何接入 P06</div>
+        <p class="know-body">P06 在 bootstrap 里构造 SubagentTool 并注册为父工具集的一员。SubagentTool 需要拿到父的 AgentRunner 工厂、子工具集（不含 task）、maxTurns。父子共用 ModelClient，因此只需要一组 .env。</p>
+      </div><div class="know" style="--i:8">
+        <div class="know-title">八 · 刻意的不对称 & 离线证明</div>
+        <p class="know-body">子 Agent 的工具列表里有 todo_write，但<b>没有挂 toolRoundObserver</b>——所以它不会收到「计划陈旧」提醒。子 Agent 有工具但没这层机制，这是刻意的。测试用注入的假审批器证明：即使配「永远批准」，子 Agent 也写不出 workspace（硬边界拦下）。</p>
+      </div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">4</span> 先看一眼一次真实的委派</div>
+    <div class="panel">
+      <div class="know">
+        <div class="know-title">父子日志交错 + 越界写入被拦</div>
+        <pre class="code"><code>npm run ch06 -- --prompt \"调用 task 独立检查本项目使用的测试框架，只返回有文件证据的结论\"
+# stderr 上父子交错:
+#   [Hook] UserPromptSubmit     (父)
+#   [Hook] PreToolUse: task     (父)
+#   [Hook] UserPromptSubmit     ← 子 Agent 那次 run() 也打日志!
+#   [Hook] PreToolUse: read_file (子)
+#   ...
+# Hook 是共享实例,所以子 Agent 的 run() 也会打 UserPromptSubmit 和 Stop
+# 观测局限:共享 HookRegistry 的代价是日志里分不清父子</code></pre>
+        <div class="note warn"><span class="lab">那如果子 Agent 想越界写呢</span>子 Agent 的 write_file 照样走第 3 章权限：工作区内弹审批、工作区外被硬边界 deny。`task` 自己是 allow（读取类），但子 Agent 的写入照样弹到你面前——审批框上不标注「这是子 Agent 发起的」。</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">5</span> 运行第 6 章</div>
+    <div class="panel">
+      <div class="flow">
+        <div class="flow-step"><span class="flow-num">0</span><div><b>准备环境</b><p><code>Set-Location code</code> + <code>npm ci</code>。</p></div></div>
+        <div class="flow-step"><span class="flow-num">1</span><div><b>先跑离线测试</b><p><code>npm run test:ch06</code> 预期 16 个文件 118 个测试。</p></div></div>
+        <div class="flow-step"><span class="flow-num">2</span><div><b>观察一次真实委派</b><p>父子日志交错出现。</p></div></div>
+        <div class="flow-step"><span class="flow-num">3</span><div><b>观察委派会不会被审批拦住</b><p>task 是 allow；子 Agent 写入照样弹审批。</p></div></div>
+        <div class="flow-step"><span class="flow-num">4</span><div><b>统一入口</b><p><code>agent-tutorial -- run --chapter 6</code>。</p></div></div>
+      </div>
+
+      <div class="know" style="margin-top:16px">
+        <div class="know-title">离线测试 / 运行命令</div>
+        <pre class="code"><code>npm run test:ch06   # 预期 16 files / 118 tests
+
+npm run ch06 -- --prompt \"调用 task 独立检查本项目使用的测试框架，只返回有文件证据的结论\"
+# 父子日志交错;Hook 共享实例,子 Agent 的 run() 也打 UserPromptSubmit/Stop
+
+npm run ch06 -- --prompt \"调用 task 让子 Agent 把一句话写入 sub-demo.txt\"
+# task 自己 allow;子 Agent 的写入照样弹审批框
+
+# 统一入口
+npm run agent-tutorial -- run --chapter 6 --prompt \"调用 task 总结 chapters/ch06/src/core 目录职责，再由父 Agent 给出结论\"</code></pre>
+      </div>
+
+      <div class="know">
+        <div class="know-title">常见报错排查</div>
+        <table class="dtable">
+          <tr><th style="width:34%">现象</th><th>原因 / 处理</th></tr>
+          <tr><td><code>Error [subagent_turn_limit]</code></td><td>子 Agent 跑满 30 轮还没给最终文本。把委派任务拆小。不要调高上限——构造时会拒绝 &gt;30</td></tr>
+          <tr><td>子 Agent 越界写入没弹审批框</td><td>预期行为。硬边界在规则之前，越界直接 deny，压根到不了审批</
+td></tr>
+          <tr><td>子 Agent 调 task 报 <code>subagent_configuration_error</code></td><td>运行时防递归第三层，正常。子工具集本就不含 task</td></tr>
+          <tr><td>启动报 maxTurns must be at most 30</td><td>构造期校验，配置错误在组合根就炸</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">6</span> 验证与实验</div>
+    <div class="panel">
+      <p class="know-body"><code>npm run test:ch06</code> 执行 16 个测试文件、118 个测试。四个建议动手的小实验：</p>
+      <table class="dtable">
+        <tr><th style="width:30%">实验</th><th>预期</th><th>学到什么</th></tr>
+        <tr><td><b>一 · maxTurns 调到 31</b><br>在 new SubagentTool 里加 maxTurns: 31</td><td>启动就抛 <code>maxTurns must be at most 30</code>，模型一次没被调用</td><td>上限是构造期校验，配置错误应在组合根就炸</td></tr>
+        <tr><td><b>二 · 让子工具集包含 task</b></td><td>返回 <code>subagent_configuration_error</code>，模型请求只有父那一次</td><td>运行时防递归第三道防线，子 Agent 压根没被创建</td></tr>
+        <tr><td><b>三 · 验证子 Agent 看不到父 history</b></td><td>子 Agent 只看到 description 那一句，必须自己再读文件</td><td>隔离是真的；description 必须自包含</td></tr>
+        <tr><td><b>四 · 观察子 Agent 的 todo_write 有没有提醒</b></td><td>没有。子 Agent 没挂 toolRoundObserver</td><td>刻意的不对称：有工具但没机制</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">7</span> 本章小结</div>
+    <div class="panel">
+      <div class="know">
+        <div class="know-title">三句话版本</div>
+        <ul class="review-list">
+          <li>task 把一段自包含探索搬到一个全新历史里跑，父 Agent 只拿回一句结论。</li>
+          <li>隔离的只有消息历史和工具注册表；Hook、权限、workspace、identity、进程全部共享。</li>
+          <li>委派不创造新路径：子 Agent 该弹的审批照样弹，该拦的越界照样拦。</li>
+        </ul>
+      </div>
+
+      <div class="know">
+        <div class="know-title">一定要记住的八条</div>
+        <table class="dtable">
+          <tr><th style="width:6%">#</th><th>结论</th><th style="width:20%">出现在哪一节</th></tr>
+          <tr><td>1</td><td>「隔离」= 上下文隔离，不是沙箱、不是提权、不是降权</td><td>这章解决什么问题</td></tr>
+          <tr><td>2</td><td>子 Agent 看不到父 history，所以 description 必须自包含</td><td>一</td></tr>
+          <tr><td>3</td><td>SubagentTool 不是第二套 Loop，它复用同一个 AgentRunner</td><td>二</td></tr>
+          <tr><td>4</td><td>父 history 只多三条：assistant(task)、tool(结论)、assistant(最终回答)</td><td>三</td></tr>
+          <tr><td>5</td><td>代价是子 Agent 的推理过程无法审计——所以要求 evidence-based 结论</td><td>三</td></tr>
+          <tr><td>6</td><td>禁止递归防三层：提示、工厂、运行时；第三层保证「模型零调用」</td><td>五</td></tr>
+          <tr><td>7</td><td>跑满轮数返回结构化错误，绝不把最后一个工具输出冒充结论</td><td>六</td></tr>
+          <tr><td>8</td><td>子 Agent 有 todo_write 但没有 toolRoundObserver——刻意的不对称</td><td>七</td></tr>
+        </table>
+      </div>
+
+      <div class="know">
+        <div class="know-title">本章代码边界</div>
+        <p class="know-body">P06 只加了「一层同步委派」，没加并行、没加持久化、没加沙箱。并行（第 13 章后台任务）、多 Agent 认领（第 17、18 章）、Inbox 异步协作（第 15 章）都在后面。</p>
+      </div>
+
+      <div class="know">
+        <div class="know-title">检查你是否真的读懂了（不看文章回答）</div>
+        <ul class="review-list">
+          <li>子 Agent 在 workspace 里写的文件，task 返回后还在吗？为什么？</li>
+          <li>父 Agent 调用一次 task，父 history 里多了几条消息？分别是什么？</li>
+          <li>子 Agent 的 write_file 会弹审批框吗？审批框上能看出这是子 Agent 吗？</li>
+          <li>给子 Agent 配「永远批准」的审批器，它能写出 workspace 吗？</li>
+          <li>子模型自己生成了 task(...) 调用，它会收到什么？</li>
+          <li>子 Agent 跑满 30 轮，父 Agent 收到的是第 30 轮的工具输出，还是别的东西？</li>
+          <li>子 Agent 的工具列表里有 todo_write。它会收到「计划陈旧」提醒吗？</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="quiz">
+    <div class="sec-head"><span class="idx">8</span> QA 测试环节（自测题）</div>
+    <div class="panel">
+      <div class="quiz-bar">
+        <span class="score">已完成 <b id="doneCount">0</b> / 7 · 答对 <b id="correctCount">0</b></span>
+        <button type="button" class="btn-reset" id="resetBtn">↺ 重新开始</button>
+      </div>
+      <div id="quizList"><div class="quiz-item" data-answer="1" data-index="0">
+        <div class="quiz-q"><span>Q1.</span> 委派里「隔离」的到底是什么？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>沙箱隔离，子 Agent 不能碰磁盘</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>消息历史和工具注册表隔离；Hook/权限/workspace/身份全部共享</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>模型互不相同</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>权限降级</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="0" data-index="1">
+        <div class="quiz-q"><span>Q2.</span> 父 Agent 调用一次 task，父 history 多几条消息？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>三条：assistant(task)、tool(结论)、assistant(最终回答)</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>子 Agent 全部推理过程</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>一条</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>无限</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="3" data-index="2">
+        <div class="quiz-q"><span>Q3.</span> 为什么 task 的 description 必须自包含？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>为了省 token</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>因为父 Agent 不想被打扰</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>Zod 要求</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>子 Agent 看不到父 history，只能靠 description 独立干活</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="2" data-index="3">
+        <div class="quiz-q"><span>Q4.</span> 子 Agent 的工具列表里有 todo_write，它会收到「计划陈旧」提醒吗？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>会，和父一样</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>会，但只有一次</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>不会——子 Agent 没挂 toolRoundObserver，刻意的不对称</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>取决于模型</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="4">
+        <div class="quiz-q"><span>Q5.</span> 给子 Agent 配「永远批准」的审批器，它能写出 workspace 吗？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>能，审批器说了算</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>不能——越界写入是硬边界 deny，审批器根本没机会</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>能，因为子 Agent 有独立权限</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>看模型心情</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="0" data-index="5">
+        <div class="quiz-q"><span>Q6.</span> 子模型自己生成了 task(...) 调用，会发生什么？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>返回 subagent_configuration_error，子 Agent 压根没被创建（模型零调用）</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>递归执行子 Agent</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>静默忽略</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>抛错终止父 run</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="2" data-index="6">
+        <div class="quiz-q"><span>Q7.</span> 子 Agent 跑满 30 轮，父 Agent 收到什么？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>第 30 轮的工具输出</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>什么也不返回</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>结构化 Error [subagent_turn_limit]，绝不把工具输出冒充结论</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>重新 run</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div></div>
+    </div>
+  </section>
+
+
+
+  <nav class="nav"><a class="nav-btn" href="第五章deepseek生成.html">← 上一章 第五章</a> <a class="nav-btn" href="第七章deepseek生成.html">第七章 →</a></nav>
+
+  <footer>交互式学习页 · 由教程文档生成 · 第 六 章 · 含 7 道自测题</footer>
+</div>
+
+
+<button class="to-top" id="toTop" title="回到顶部">↑</button>
+
+<script>
+(function () {
+  const total = 7;
+  const doneKey = "quiz_done_" + 6;
+  const correctKey = "quiz_correct_" + 6;
+  const pickedKey = "quiz_picked_" + 6;
+
+  function load(name) { try { return JSON.parse(localStorage.getItem(name) || "null"); } catch { return null; } }
+  function save(name, val) { try { localStorage.setItem(name, JSON.stringify(val)); } catch {} }
+
+  let done = load(doneKey) || 0;
+  let correct = load(correctKey) || 0;
+  let picked = load(pickedKey) || {};
+
+  var WHY = ["委派隔离的是消息历史和工具注册表;Hook/权限/workspace/身份/进程全部共享。","父 history 只多三条,子推理过程不进父历史——所以要求 evidence-based 结论。","子 Agent 看不到父 history,只能靠自包含 description 独立干活。","子 Agent 没挂 toolRoundObserver,所以收不到计划陈旧提醒,这是刻意的不对称。","越界写入是硬边界 deny,在规则之前,审批器根本没机会被调用。","运行时第三道防线:子工具集不含 task,模型生成 task 调用也返回配置错误,保证零调用。","跑满 30 轮返回结构化 subagent_turn_limit,不让子 Agent 的中间输出冒充最终结论。"];;
+  function updateProgress() {
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const fill = document.getElementById("progressFill");
+    const txt = document.getElementById("progressTxt");
+    if (fill) fill.style.width = pct + "%";
+    if (txt) txt.textContent = pct + "%";
+    const dc = document.getElementById("doneCount");
+    const cc = document.getElementById("correctCount");
+    if (dc) dc.textContent = done;
+    if (cc) cc.textContent = correct;
+  }
+  function renderFeedback(item, qi, sel, answer) {
+    const opts = item.querySelectorAll(".quiz-opt");
+    opts.forEach(function (opt, oi) {
+      opt.disabled = true;
+      if (oi === answer) opt.classList.add("correct");
+      else if (oi === sel) opt.classList.add("wrong");
+    });
+    const fb = item.querySelector(".quiz-feedback");
+    const isCorrect = sel === answer;
+    fb.classList.remove("hidden", "correct", "wrong");
+    fb.classList.add(isCorrect ? "correct" : "wrong");
+    fb.innerHTML =
+      '<div class="fb-icon">' + (isCorrect ? "✅" : "❌") + "</div>" +
+      '<div class="fb-text"><b>' + (isCorrect ? "回答正确！" : "回答错误") + "</b><br><span style='color:var(--muted);font-size:13px'>解析：" + (WHY[qi] || "") + "</span></div>";
+  }
+  document.querySelectorAll(".quiz-item").forEach(function (item) {
+    const qi = item.getAttribute("data-index");
+    const answer = Number(item.getAttribute("data-answer"));
+    const opts = item.querySelectorAll(".quiz-opt");
+    opts.forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        const oi = Number(opt.getAttribute("data-oi"));
+        if (picked[qi] !== undefined) return;
+        picked[qi] = oi; save(pickedKey, picked);
+        done += 1; if (oi === answer) correct += 1;
+        save(doneKey, done); save(correctKey, correct);
+        renderFeedback(item, qi, oi, answer); updateProgress();
+      });
+    });
+    if (picked[qi] !== undefined) renderFeedback(item, qi, picked[qi], answer);
+  });
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (!confirm("确定要清空本章的答题记录并重新开始吗？")) return;
+    done = 0; correct = 0; picked = {};
+    save(doneKey, done); save(correctKey, correct); save(pickedKey, picked);
+    location.reload();
+  });
+  const toTop = document.getElementById("toTop");
+  toTop.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+  updateProgress();
+})();
+
+</script>
+</body>
+</html>

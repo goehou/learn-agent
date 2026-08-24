@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 1 章 · Agent Loop — 一个循环,就是模型与真实世界之间的全部距离</title>
+<style>
+  :root{
+    --bg:#0f1117; --surface:#1a1d27; --surface2:#232733; --border:#2e3340;
+    --text:#e6e8ee; --muted:#9aa0ac; --faint:#6b7280;
+    --accent:#7c9cff; --accent2:#b07cff; --teal:#5ec8b6;
+    --ok:#4ade80; --bad:#f87171; --warn:#fbbf24;
+    --code-bg:#11141c; --sys:#fbbf24; --user:#7c9cff; --assistant:#b07cff; --tool:#5ec8b6;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code","SFMono-Regular",Consolas,"Courier New",monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}
+  pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600;letter-spacing:.02em}
+
+  /* topbar */
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem;white-space:nowrap}
+  .topbar .title{font-weight:600;font-size:.92rem;color:var(--text);flex:1;min-width:200px}
+  .topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}
+  .topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}
+  .topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}
+  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}
+  .btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  /* layout */
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.7rem;line-height:1.3}
+  .hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}
+  .hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}
+  h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}
+  .card>summary::-webkit-details-marker{display:none}
+  .card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}
+  .card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px;color:var(--text)}
+  .card .body p{margin:8px 0}
+  .card .body .tag{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}
+  th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}
+  th{background:var(--surface2);color:var(--muted);font-weight:600}
+  tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+
+  /* simulator */
+  .sim{border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden}
+  .sim-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .sim-head .scenario{font-weight:600}
+  .sim-head .turn{margin-left:auto;font-size:.82rem;color:var(--muted)}
+  .sim-head .turn b{color:var(--accent)}
+  .sim-controls{display:flex;gap:8px;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface2)}
+  .sim-stage{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .sim-decision{padding:18px;border-right:1px solid var(--border)}
+  .sim-decision .q{color:var(--muted);font-size:.82rem;margin-bottom:10px}
+  .branch{border:1px solid var(--border);border-radius:10px;padding:12px;margin:8px 0;opacity:.45;transition:.2s}
+  .branch.active{opacity:1;border-color:var(--accent);background:rgba(124,156,255,.08)}
+  .branch .verdict{font-weight:700;font-size:.85rem}
+  .branch.yes .verdict{color:var(--warn)}
+  .branch.no .verdict{color:var(--ok)}
+  .sim-log{padding:14px 18px;max-height:340px;overflow:auto}
+  .msg{display:flex;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border);font-size:.85rem;animation:fadein .3s ease}
+  .msg:last-child{border-bottom:none}
+  .msg .role{flex-shrink:0;width:84px;font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
+  .role.system{color:var(--sys)} .role.user{color:var(--user)} .role.assistant{color:var(--assistant)} .role.tool{color:var(--tool)}
+  .msg .content{flex:1;color:var(--text)}
+  .msg .content .tc{display:inline-block;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:1px 7px;margin:2px 4px 2px 0;font-family:monospace;font-size:.78rem}
+  .raise{display:inline-block;margin-left:8px;font-size:.7rem;padding:1px 7px;border-radius:999px;font-weight:700}
+  .raise.yes{background:rgba(251,191,36,.15);color:var(--warn);border:1px solid rgba(251,191,36,.4)}
+  .raise.no{background:rgba(74,222,128,.15);color:var(--ok);border:1px solid rgba(74,222,128,.4)}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* quiz */
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}
+  .q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}
+  .q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}
+  .opt:hover{border-color:var(--accent);background:var(--surface2)}
+  .opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}
+  .opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}
+  .opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}
+  .explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}
+  .explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem}
+  .quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}
+  .callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  .callout.warn .lab{color:var(--warn)}
+
+  .keyformula{text-align:center;font-size:1.1rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}
+  .keyformula code{font-weight:700;color:var(--accent)}
+
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}
+  .pagenav a:hover{border-color:var(--accent);text-decoration:none}
+  .pagenav a.next{text-align:right}
+  .pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+  @media(max-width:640px){.sim-stage{grid-template-columns:1fr}.sim-decision{border-right:none;border-bottom:1px solid var(--border)}.hero h1{font-size:1.35rem}}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 1 章</span>
+  <span class="title">Agent Loop <span class="muted">· Agent架构实操一</span></span>
+  <nav>
+    <a href="#guide">导读</a>
+    <a href="#glossary">术语</a>
+    <a href="#concepts">概念</a>
+    <a href="#wire">数据流</a>
+    <a href="#sim">交互演示</a>
+    <a href="#code">代码</a>
+    <a href="#run">运行</a>
+    <a href="#recap">小结</a>
+    <a href="#quiz">测验</a>
+  </nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+
+<main>
+  <div class="hero">
+    <h1>Agent Loop:一个循环,就是模型与真实世界之间的全部距离</h1>
+    <div class="sub">不画架构框图,只看代码。整章只讲一个核心:让模型和真实世界之间那个「人工搬运结果」的中间层自动化。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 12 分钟</span>
+      <span class="pill">📦 13 个源码文件</span>
+      <span class="pill">🔧 工具:shell</span>
+      <span class="pill">🧪 30 个离线测试</span>
+    </div>
+  </div>
+
+  <section id="guide">
+    <h2><span class="num">🎯</span> 本章导读</h2>
+    <div class="sec-desc">读完这一章,你应该能用一句话回答下面每个问题。</div>
+    <div class="callout">
+      <span class="lab">读完能做到</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>用一句话说清 Agent 和「调用一次模型 API」的区别。</li>
+        <li>看懂一轮 Agent 对话在网络上真正传了哪些 JSON 字段。</li>
+        <li>自己手写一个不到 60 行、能跑起来的 Agent Loop。</li>
+        <li>说出这个循环在什么条件下结束,以及为什么必须有轮次上限。</li>
+        <li>在本机跑通第 1 章配套代码,并让 Agent 帮你执行一条 PowerShell 命令。</li>
+      </ol>
+    </div>
+
+    <details class="card">
+      <summary>你需要先具备什么 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th>需要</th><th>程度</th></tr>
+          <tr><td>TypeScript / JavaScript</td><td>能看懂 <code>async/await</code>、数组、<code>interface</code>,不需要熟悉高级类型</td></tr>
+          <tr><td>命令行</td><td>能在 PowerShell 里进入目录、运行 <code>npm</code> 命令</td></tr>
+          <tr><td>大模型 API</td><td>知道「把消息发给模型、模型返回文本」这件事就够了</td></tr>
+          <tr><td>上一章</td><td>无。这是第 1 章</td></tr>
+        </table>
+        <p>不需要读过任何 Agent 框架的文档。本章出现的每个自造概念都会在下面的术语表里先解释一遍。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>建议的阅读路线 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>本章导读(你在这)
+  ↓
+① 先说你现在是什么角色      ← 建立直觉:Agent 替代的是「你」
+  ↓
+② 两个信号,一个循环        ← 决策树只有两个分支
+  ↓
+③ 先看一眼真实的数据流      ← 两轮 JSON 实例,最关键的一节
+  ↓
+④ 五步拆解 + 完整函数       ← 代码怎么跑起来
+  ↓
+⑤ 边界与差距               ← 格式差异、shell 不是沙箱、CC 的四点差距
+  ↓
+⑥ 结论与源码地图            ← Agent = 模型 + Harness + 历史
+  ↓
+⑦ 运行第 1 章智能体         ← 动手,六步 + 排错表
+  ↓
+⑧ 验证、实验与小结          ← 三个动手实验 + 自测题</code></pre>
+        <div class="callout"><span class="lab">提示</span> 想先跑起来再读原理?直接跳到 <a href="#run">运行第 1 章智能体</a>,那一节是完全自包含的步骤清单,跑通后再回头读 <a href="#wire">③ 真实数据流</a>。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="glossary">
+    <h2><span class="num">📇</span> 术语速查</h2>
+    <div class="sec-desc">本章第一次出现的词。先扫一眼,正文里遇到不认识的词回来查即可。<b>不用背</b>。</div>
+    <table>
+      <tr><th style="width:34%">术语</th><th>一句话解释</th></tr>
+      <tr><td><b>Agent Loop</b></td><td>「问模型 → 执行工具 → 把结果喂回去 → 再问模型」的循环。本章唯一主题</td></tr>
+      <tr><td><b>Harness</b>(挽具)</td><td>循环之外的所有代码:配置校验、工具注册、参数校验、审批、错误分类、轮次上限。模型负责决定,Harness 负责安全地落地</td></tr>
+      <tr><td><b>轮次(turn)</b></td><td>一次「发请求给模型」算一轮。注意<b>不是</b>一次工具调用算一轮</td></tr>
+      <tr><td><code>tool_calls</code></td><td>模型回复里的一个数组字段。非空表示「我要用工具」,空表示「我说完了」</td></tr>
+      <tr><td><code>tool_call_id</code></td><td>每次工具调用的唯一编号。工具结果靠它对应回是哪次调用</td></tr>
+      <tr><td><code>ToolRegistry</code></td><td>工具注册表。存放所有工具的名字、说明、参数格式和执行函数</td></tr>
+      <tr><td><b>snapshot</b>(快照)</td><td>把注册表在本轮「拍照定格」。保证模型看到的工具清单和随后真正执行的清单是同一份</td></tr>
+      <tr><td><code>ToolResult</code></td><td>工具执行的统一结果类型。成功和失败都是 <code>ToolResult</code>,不抛异常打断循环</td></tr>
+      <tr><td><b>discriminated union</b></td><td>TypeScript 写法:用 <code>role</code> 字段区分四种消息,编译器据此知道每种消息各有哪些字段</td></tr>
+      <tr><td><b>观察空间 / 动作空间</b></td><td>模型「能看到什么」(系统提示 + 消息历史 + 工具说明)和「能做什么」(注册表里的工具)</td></tr>
+      <tr><td><b>组合根</b></td><td>唯一负责创建真实依赖并注入的文件,本章是 <code>bootstrap.ts</code>。核心循环自己不 <code>new</code> 任何 SDK 或子进程</td></tr>
+      <tr><td><b>profile</b></td><td>章节能力白名单。第 1 章的 <code>P01</code> 只允许装 <code>loop</code> 和 <code>powershell</code> 两项能力</td></tr>
+      <tr><td><b>effect</b>(副作用类别)</td><td>工具声明自己会不会改变世界。<code>shell</code> 标记为 <code>execute</code>,因此默认逐次要人工批准</td></tr>
+      <tr><td><b>fail-closed</b></td><td>出错时选择拒绝而不是放行。审批环节抛异常也当作「拒绝」处理</td></tr>
+    </table>
+  </section>
+
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击卡片展开。每个概念都对应后面代码或演示里的一行。</div>
+
+    <details class="card" open>
+      <summary>1 · 你现在是什么角色:人工 API <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>没有 Agent 时,你在对话框让模型「列出最大的 .ts 文件」,模型只输出一条 PowerShell 命令,但<b>自己不跑</b>。你切到终端、粘贴、回车、看输出、再切回来把输出粘进对话框。</p>
+        <p>每一次来回,你都在做同一件事:<b>把工具结果手动传回给模型</b>。这时你就是一个「人工 API」,是模型和真实世界之间的中间层。</p>
+        <p>把这个中间层自动化,就是 Agent Loop 要做的<b>唯一</b>一件事。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>2 · 两个信号,一个循环 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>整个决策树只有两个分支:</p>
+        <pre><code>模型返回 tool_calls 了?
+├── 是 → 执行工具,把结果喂回去,再问一次
+└── 否 → 模型觉得做完了,退出</code></pre>
+        <table>
+          <tr><th>信号</th><th>含义</th><th>动作</th></tr>
+          <tr><td><code>assistant.tool_calls</code> 非空</td><td>模型举手「我要用工具」</td><td>执行 → 回填 → 继续循环</td></tr>
+          <tr><td><code>assistant.tool_calls</code> 为空</td><td>模型没再请求工具</td><td>返回最终文本;无文本则明确失败</td></tr>
+        </table>
+        <div class="callout warn"><span class="lab">关键</span> 循环是<b>机械</b>的,没有任何智能。真正的智能全在模型里,循环只是模型的手脚。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>3 · 观察空间 vs 动作空间 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>从概念框架看,这个循环对应模型与真实世界之间的两个接口:</p>
+        <ul>
+          <li><b>观察空间</b>(模型能看到什么):由 system prompt、消息历史、工具 schema 共同组成的请求快照。</li>
+          <li><b>动作空间</b>(模型能做什么):<code>ToolRegistry</code> 注册的全部工具。</li>
+        </ul>
+        <p>工具执行完,结果必须重新放回<b>观察空间</b>,循环才能继续——这就是「回填」。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>4 · 五步拆解:代码怎么跑起来 <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li><b>用户问题进消息列表</b>:<code>history.push(userMessage(prompt))</code>。消息用 system/user/assistant/tool 四种角色的 discriminated union,构造时冻结。</li>
+          <li><b>把消息+工具定义一起发给模型</b>:<code>tools.snapshot()</code> 冻结本次可见工具集,保证模型看到的 schema 和执行时用的是<b>同一份快照</b>。</li>
+          <li><b>追加模型回答,检查是否调工具</b>:<code>toolCalls.length === 0</code> 就退出。退出条件不是「说完了」,而是「没调工具」。</li>
+          <li><b>执行工具,收集结果</b>:每个调用产生一个独立 <code>role:"tool"</code> 消息,靠 <code>tool_call_id</code> 和前面的调用一一配对。</li>
+          <li><b>把结果追加,回到第二步</b>:循环结构本身实现了「回去」,不需要额外代码。</li>
+        </ol>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>5 · 退出条件不是「说完了」,而是「没调工具」 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>这两件事<b>不等价</b>,有四种组合:</p>
+        <table>
+          <tr><th>说话</th><th>调工具</th><th>循环</th></tr>
+          <tr><td>✓</td><td>✓</td><td>继续(边说边调)</td></tr>
+          <tr><td>✗</td><td>✓</td><td>继续(只调不说话)</td></tr>
+          <tr><td>✓</td><td>✗</td><td><b>退出</b>(说话且不调)</td></tr>
+          <tr><td>✗</td><td>✗</td><td>明确失败(没文本也没工具)</td></tr>
+        </table>
+        <p>我们只关心它<b>有没有举手要工具</b>。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>6 · shell 不是沙箱 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>工具名 <code>shell</code>,执行 PowerShell。没有字符串黑名单(换个写法就绕过,反而制造「已安全」的错觉)。它被标记为 <code>execute</code> 副作用,每次执行前显示工具名、原因、参数并询问 <code>允许本次调用? [y/N]</code>。</p>
+        <div class="callout warn"><span class="lab">注意</span> 审批 ≠ 隔离。<code>cwd</code> 只是子进程起始目录,命令仍可切目录、访问绝对路径、启动进程、访问网络。在文件工具有路径边界之前,<b>绝不能把 cwd 描述成 sandbox</b>。真正的权限合并在第 3 章。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>7 · 几十行 vs 1729 行:差的全是保护机制 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>核心循环就几十行。参考仓库核查 Claude Code 旧版 <code>query.ts</code> 约 1729 行,剩下的全是保护机制:</p>
+        <table>
+          <tr><th>差异点</th><th>最小循环</th><th>生产级(CC)</th></tr>
+          <tr><td>继续判断</td><td>看 <code>tool_calls</code> 非空</td><td>流式中用 <code>needsFollowUp</code> 标志位,避免 <code>stop_reason</code> 滞后漏判</td></tr>
+          <tr><td>State 字段</td><td>history、轮次、上下文</td><td>10 个字段(含 token 恢复计数、响应式压缩、后台摘要…)</td></tr>
+          <tr><td>退出路径</td><td>1 条正常 + 几个明确失败</td><td>8 条(最大轮次/超长/截断恢复/报错/中断/Hook/预算/压缩重试)</td></tr>
+          <tr><td>工具执行</td><td>串行</td><td><code>StreamingToolExecutor</code> 按 concurrency-safe 标记决定并行/独占</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="wire">
+    <h2><span class="num">📡</span> 先看一眼真实的数据流</h2>
+    <div class="sec-desc">很多人学 Agent 卡住,不是卡在代码,而是卡在「不知道网络上到底传了什么」。下面不看代码,只看数据。用户输入:<b>「运行 Write-Output 42,并告诉我结果。」</b></div>
+
+    <details class="card" open>
+      <summary>第 1 轮 · 我们发出的请求 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>只有两个我们关心的部分:<code>messages</code>(模型能看到什么)和 <code>tools</code>(模型能做什么)。</p>
+        <pre><code>{
+  "model": "gpt-4.1",
+  "messages": [
+    { "role": "system", "content": "You are a coding agent. Use tools when needed..." },
+    { "role": "user",   "content": "运行 Write-Output 42,并告诉我结果" }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "shell",
+        "description": "Run a PowerShell command in the current workspace.",
+        "parameters": {
+          "type": "object",
+          "properties": { "command": { "type": "string", "minLength": 1 } },
+          "required": ["command"],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}</code></pre>
+        <div class="callout"><span class="lab">关键</span> <code>parameters</code> 就是「工具说明书」,不用手写——它由 <code>z.strictObject({ command: z.string().min(1) })</code> 这一行 Zod 定义自动生成。<b>同一份定义既生成说明书,又用于校验模型传回的参数</b>,不可能出现「说明书说 <code>command</code>,校验时却要 <code>cmd</code>」的错位。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 1 轮 · 模型返回的响应 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>{
+  "choices": [{
+    "finish_reason": "tool_calls",
+    "message": {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [{
+        "id": "call_abc123",
+        "type": "function",
+        "function": {
+          "name": "shell",
+          "arguments": "{\"command\":\"Write-Output 42\"}"
+        }
+      }]
+    }
+  }]
+}</code></pre>
+        <table>
+          <tr><th style="width:30%">必须看清的细节</th><th>为什么重要</th></tr>
+          <tr><td><code>content</code> 是 <code>null</code></td><td>模型这一轮一个字都没说,只举手要工具。所以「模型有没有说完」<b>不能</b>用有没有文本判断</td></tr>
+          <tr><td><code>arguments</code> 是字符串</td><td>里面是 JSON 文本,需要自己 <code>JSON.parse</code>。模型完全可能吐出语法错误的 JSON——必须处理的真实情况</td></tr>
+          <tr><td><code>id</code> 是 <code>call_abc123</code></td><td>记住它,下一步回填结果时要用</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>中间步骤 · 我们在本机执行 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>① 按名字查工具       shell → 找到定义(找不到就生成 unknown_tool 错误结果)
+② 解析 arguments     JSON.parse('{"command":"Write-Output 42"}')
+③ Zod 校验           必须有 command、必须非空字符串、不能有多余字段
+④ 人工审批           终端打印命令,等你输入 y
+   ↓ 你批准了
+⑤ 真正执行           启动 PowerShell 子进程,拿到 stdout "42"</code></pre>
+        <div class="callout warn"><span class="lab">安全核心</span> 第 ③ 步在第 ⑤ 步<b>之前</b>。参数校验必须发生在副作用之前——一旦命令已经跑了,再发现参数不合法就没有意义了。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 2 轮 · 把结果喂回去,模型给出答案 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>关键在于:<b>上一轮的 assistant 消息要原样留在历史里</b>,然后紧跟一条 <code>role: "tool"</code> 的新消息。</p>
+        <pre><code>"messages": [
+  { "role": "system", "content": "..." },
+  { "role": "user",   "content": "运行 Write-Output 42,并告诉我结果" },
+  { "role": "assistant", "content": null,
+    "tool_calls": [{ "id": "call_abc123", "type": "function",
+      "function": { "name": "shell", "arguments": "{\"command\":\"Write-Output 42\"}" } }] },
+  { "role": "tool", "tool_call_id": "call_abc123", "content": "42" }
+]</code></pre>
+        <p><code>tool_call_id</code> 和上一轮的 <code>id</code> 对上了。这是模型唯一的线索——它靠这个编号知道「<code>42</code> 是我那次 <code>Write-Output 42</code> 调用的结果」。</p>
+        <p>模型返回最终答案:</p>
+        <pre><code>{
+  "choices": [{
+    "finish_reason": "stop",
+    "message": {
+      "role": "assistant",
+      "content": "命令执行成功,输出是 42。",
+      "tool_calls": []
+    }
+  }]
+}</code></pre>
+        <p><code>tool_calls</code> 空了。循环退出,把 <code>content</code> 作为最终答案返回给用户。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>把两轮压缩成一张图 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>        我们                                模型
+         │                                  │
+ 第1轮   │ messages(2条) + tools(1个)  ───▶ │
+         │                                  │ 「我要 shell」
+         │ ◀────  tool_calls=[call_abc123]   │
+         │                                  │
+  执行   │ 查工具→解析参数→Zod校验→审批→跑   │
+         │ 得到 "42"                          │
+         │                                  │
+ 第2轮   │ messages(4条) + tools(1个)  ───▶ │
+         │  ↑ 多了 assistant + tool 两条     │ 「够了,我能回答了」
+         │ ◀────  tool_calls=[] content="…"  │
+         │                                  │
+  结束   │ 返回 content 给用户               │</code></pre>
+        <div class="callout warn"><span class="lab">一句话总结</span> 每一轮 <code>messages</code> 都在变长——这就是 Agent 的「记忆」。没有别的机制,就是一个数组不断 <code>push</code>。也正因为它只增不减,第 8 章才必须专门讲上下文压缩。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:Agent Loop 步进模拟器</h2>
+    <div class="sec-desc">点「下一步」逐步推进循环,看消息历史如何增长、循环靠什么信号决定去留。左边是决策树,右边是消息日志。</div>
+    <div class="sim">
+      <div class="sim-head">
+        <span class="scenario">📋 场景:找出当前目录最大的 .ts 文件并报告行数</span>
+        <span class="turn">轮次 <b id="turnN">0</b>/<span id="turnMax">3</span></span>
+      </div>
+      <div class="sim-controls">
+        <button class="btn primary" id="stepBtn">▶ 下一步</button>
+        <button class="btn" id="autoBtn">⏩ 自动播放</button>
+        <button class="btn" id="resetBtn">↺ 重置</button>
+      </div>
+      <div class="sim-stage">
+        <div class="sim-decision">
+          <div class="q">模型返回 <code>tool_calls</code> 了吗?</div>
+          <div class="branch yes" id="brYes"><div class="verdict">是 → 执行工具,回填,继续</div><div style="font-size:.78rem;color:var(--muted);margin-top:4px">为每个调用执行或生成错误结果 → <code>toolMessage</code> 回填 → 下一轮</div></div>
+          <div class="branch no" id="brNo"><div class="verdict">否 → 返回最终文本,退出</div><div style="font-size:.78rem;color:var(--muted);margin-top:4px">有文本就返回;无文本也无工具调用 → 明确失败</div></div>
+          <div class="callout" style="margin-top:14px;font-size:.82rem"><span class="lab">提示</span> 注意 <code>role:"tool"</code> 消息靠 <code>tool_call_id</code> 和上面的 assistant 调用配对——OpenAI 格式的硬要求。</div>
+        </div>
+        <div class="sim-log" id="log"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="code">
+    <h2><span class="num">📖</span> 代码精读:最小 agentLoop</h2>
+    <div class="sec-desc">五步组装起来的等价精简版。真实版在 <code>code/chapters/ch01/src/core/loop.ts</code>。</div>
+    <pre><code>async function agentLoop(options): Promise&lt;RunResult&gt; {
+  const maxTurns = options.maxTurns ?? 20;          // 带上限,防止永不退出
+  const history: ChatMessage[] = [userMessage(options.prompt)];
+
+  for (let turn = 1; turn &lt;= maxTurns; turn += 1) {  // ← 有界循环
+    const request: ModelRequest = {
+      messages: [systemMessage(options.systemPrompt), ...history],
+      tools: options.tools.openAITools(),           // 工具 schema = 动作空间
+    };
+    const reply = await options.model.complete(request);
+    if (reply.finishReason === "length") throw new IncompleteModelReplyError(...);
+    if (reply.finishReason === "content_filter") throw new AgentRunError(...);
+
+    const assistant = reply.message;
+    history.push(assistant);                         // 第三步:追加回答
+    if (assistant.toolCalls.length === 0) {          // ← 唯一的正常退出信号
+      if (assistant.content === null) throw new AgentRunError("stopped without text or tools");
+      return { finalText: assistant.content, history, turns: turn };
+    }
+
+    for (const call of assistant.toolCalls) {        // 第四步:执行工具
+      const result = await options.executeTool(call, context);
+      history.push(toolMessage(result.content, call.id));  // 靠 id 配对回填
+    }
+  }                                                  // 第五步:回到 for 顶
+  throw new AgentLimitError(`exceeded maxTurns=${maxTurns}`);
+}</code></pre>
+    <div class="callout"><span class="lab">读法</span> 循环里没有出现 <code>shell</code> 这个词。循环只认识「一次调用返回一个结果」这个抽象协议——这就是下一篇「加工具只加一行」的基础。</div>
+  </section>
+
+  <section id="run">
+    <h2><span class="num">🚀</span> 运行第 1 章智能体</h2>
+    <div class="sec-desc">完全自包含:从零开始,六步跑通。每步都给出预期结果,对不上就看最后的排错表。</div>
+
+    <details class="card" open>
+      <summary>第 0–2 步 · 环境、依赖与离线测试 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p class="tag">第 0 步 · 确认 Node 版本</p>
+        <pre><code>node --version</code></pre>
+        <p>预期输出类似 <code>v20.12.0</code> 或更高。低于 <code>20.12</code> 请先升级 Node.js。</p>
+        <p class="tag">第 1 步 · 进入 code 目录并安装依赖</p>
+        <pre><code>Set-Location 'F:\笔记\Agent实操\code'
+npm ci</code></pre>
+        <p>用 <code>npm ci</code> 而不是 <code>npm install</code>:前者严格按 <code>package-lock.json</code> 安装,保证依赖版本和教程一致。</p>
+        <p class="tag">第 2 步 · 先跑离线测试(不需要任何密钥)</p>
+        <pre><code>npm run test:ch01</code></pre>
+        <pre><code> Test Files  6 passed (6)
+      Tests  30 passed (30)</code></pre>
+        <div class="callout"><span class="lab">建议</span> 在配 API 之前先做这一步,把「环境问题」和「配置问题」分开。中间会看到一行 <code>配置错误: Missing required settings: …</code>——<b>这是正常的</b>,它是 <code>config.test.ts</code> 故意触发的用例输出。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 3 步 · 创建并填写 .env <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>Copy-Item .env.example .env
+notepad .env</code></pre>
+        <pre><code>OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4.1</code></pre>
+        <table>
+          <tr><th>要求</th><th>正确</th><th>错误</th></tr>
+          <tr><td>不要带 <code>/chat/completions</code></td><td><code>https://api.openai.com/v1</code></td><td><code>…/v1/chat/completions</code></td></tr>
+          <tr><td>通常要以 <code>/v1</code> 结尾</td><td><code>https://your-provider.com/v1</code></td><td><code>https://your-provider.com</code></td></tr>
+        </table>
+        <p>SDK 会<b>自己</b>在 base URL 后面拼 <code>/chat/completions</code>。<code>config.ts</code> 会在发请求前就检测出重复路径并直接报错。</p>
+        <div class="callout warn"><span class="lab">没有隐式默认值</span> 任何一项为空都会在网络请求前列出缺失字段。宁可启动失败,也不要让你以为在用 A 模型、实际在用 B 模型。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 4–5 步 · 跑真实 Agent 并看懂审批提示 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code># 入口一:固定章节脚本
+npm run ch01 -- --prompt "运行 Write-Output 42,并告诉我结果"
+
+# 入口二:统一 CLI,用 --chapter 选章
+npm run agent-tutorial -- run --chapter 1 --prompt "运行 Write-Output 42,并告诉我结果"</code></pre>
+        <p>注意 <code>--</code> 那两个横杠:它告诉 npm「后面的参数是给脚本的」,漏了参数就传不进去。</p>
+        <pre><code>工具调用需要批准: shell
+原因: PowerShell command execution requires explicit approval.
+参数: {"command":"Write-Output 42"}
+允许本次调用? [y/N]</code></pre>
+        <p>这三行对应审批的三个判断依据:<b>哪个工具、为什么要批准、具体参数是什么</b>。看清参数那一行再决定——这是你唯一能拦住危险命令的地方。</p>
+        <div class="callout warn"><span class="lab">fail-closed</span> 只有明确输入 <code>y</code> 或 <code>yes</code> 才会执行。回车、其他输入、无交互 stdin 或审批异常都默认拒绝。拒绝仍会生成同一个 <code>tool_call_id</code> 的工具错误结果,所以你输 <code>n</code> 之后 Agent 不会崩。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>常见报错排查表 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th>你看到的错误</th><th>原因</th><th>怎么修</th></tr>
+          <tr><td><code>配置错误: Missing required settings: …</code></td><td><code>.env</code> 缺字段或字段为空</td><td>补齐报错里列出的那几项;等号后面有空格也算空</td></tr>
+          <tr><td>只报 <code>OPENAI_BASE_URL</code></td><td>URL 不合法或结尾带了 <code>/chat/completions</code></td><td>按第 3 步的表改 URL</td></tr>
+          <tr><td><code>运行失败: Unknown argument: …</code></td><td>参数拼错,或漏了 <code>--</code></td><td>检查是否写成 <code>npm run ch01 --prompt "…"</code></td></tr>
+          <tr><td><code>Both --chapter and --prompt are required</code></td><td>统一入口没给 <code>--chapter</code></td><td>加上 <code>--chapter 1</code></td></tr>
+          <tr><td><code>Expected command: run</code></td><td>统一入口漏了 <code>run</code> 子命令</td><td>用 <code>npm run agent-tutorial -- run --chapter 1 …</code></td></tr>
+          <tr><td><code>Agent exceeded maxTurns=20</code></td><td>模型反复调工具但拿不到满意结果</td><td>换更明确的 prompt;或先用简单命令确认链路通</td></tr>
+          <tr><td><code>Model output reached the token limit</code></td><td>输出被截断(<code>finish_reason=length</code>)</td><td>让任务输出更短。第 11 章才会自动恢复</td></tr>
+          <tr><td><code>Unsupported finish_reason: …</code></td><td>供应商返回了非标准值</td><td>该接口未完全兼容 Chat Completions,换供应商或模型</td></tr>
+          <tr><td><code>无交互输入,默认拒绝。</code></td><td>没有交互终端(管道、CI、某些 IDE 终端)</td><td>在真实 PowerShell 窗口里跑</td></tr>
+          <tr><td>401 / 403</td><td>API Key 无效或无权限</td><td>确认该 key 能访问 <code>OPENAI_MODEL</code></td></tr>
+          <tr><td>404</td><td>base URL 路径不对</td><td>多半是漏了 <code>/v1</code></td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>三个建议动手做的小实验 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>看懂不等于会写。下面三个改动都只要几分钟,但能把本章的核心约束从「知道」变成「验证过」。改完记得改回去。</p>
+        <table>
+          <tr><th style="width:26%">实验</th><th>预期</th><th>学到什么</th></tr>
+          <tr><td><b>一·把轮次上限调到 1</b><br><small>让脚本化模型第一轮就请求工具</small></td><td>抛 <code>AgentLimitError</code>,消息是 <code>Agent exceeded maxTurns=1</code></td><td>轮次上限拦的是「工具执行完了,循环却没有下一轮可用」</td></tr>
+          <tr><td><b>二·故意漏掉一个工具结果</b><br><small>两个 <code>toolCalls</code> 只跟一条 <code>tool</code> 消息</small></td><td>抛 <code>MessageContractError</code>: <code>missing tool results for ids: ["call_2"]</code></td><td>配对校验的价值在于<b>提前</b>报错,而不是等供应商返回含糊的 400</td></tr>
+          <tr><td><b>三·命令执行器返回非零退出码</b><br><small><code>FakeCommandRunner</code> 返回 <code>exitCode: 1</code></small></td><td>循环不中断,历史里出现含 <code>shell_failed</code> 的 <code>role:"tool"</code> 消息</td><td><b>工具失败是数据,不是异常</b>——也正是 Agent 能自己换方案重试的原因</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">
+      <code>Agent = 模型决策 + Harness 执行 + 消息历史传递</code><br>
+      <span style="color:var(--muted);font-size:.9rem">即 <code>Agent = LLM + 上下文 + 工具</code>。Planner / Memory / Orchestrator 都是在这三件事之上叠加的能力。</span>
+    </div>
+    <ul>
+      <li><b>模型决策</b>:要不要用工具、用哪个、传什么参数——智能,循环控制不了。</li>
+      <li><b>Harness 执行</b>:工具调了就跑,结果喂回去——机械动作,就是这段短循环。</li>
+      <li><b>消息历史传递</b>:每轮输入输出追加进列表——记忆,就是 <code>history</code>。</li>
+    </ul>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">📝</span> 本章小结</h2>
+    <div class="sec-desc">三句话版本、一定要记住的五条、以及本章<b>还没做什么</b>。</div>
+
+    <div class="callout">
+      <span class="lab">三句话版本</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>Agent Loop 就是「问模型 → 看 <code>tool_calls</code> 空不空 → 执行工具 → 把结果 push 回历史 → 再问模型」,代码不到 60 行。</li>
+        <li>循环只有一个分叉点(<code>tool_calls</code> 空不空)和三个出口(正常返回、轮次耗尽、不可恢复错误)。</li>
+        <li>生产级 Agent 的代码量差距不在循环,全在循环外围的保护:校验、审批、错误分类、恢复、上限。</li>
+      </ol>
+    </div>
+
+    <details class="card" open>
+      <summary>一定要记住的五条 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:6%">#</th><th>结论</th><th style="width:20%">出现在哪一节</th></tr>
+          <tr><td>1</td><td>退出条件是「模型没调工具」,不是「模型说完了」</td><td>第三步</td></tr>
+          <tr><td>2</td><td>每个 <code>tool_call</code> 必须有且只有一个同 ID 的结果,失败和拒绝也算</td><td>第四步</td></tr>
+          <tr><td>3</td><td>参数校验必须在副作用之前;<code>prepare</code> 不执行,<code>invoke</code> 才执行</td><td>第四步</td></tr>
+          <tr><td>4</td><td>工具失败返回 <code>ToolResult</code>,不 <code>throw</code>——否则模型没机会纠错</td><td>shell 工具</td></tr>
+          <tr><td>5</td><td>安全边界出错时选择拒绝(fail-closed),不选择放行</td><td>第四步</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>本章代码边界(明确「还没做什么」) <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th>已经有</th><th>还没有</th><th style="width:18%">在哪一章补</th></tr>
+          <tr><td>一个 <code>shell</code> 工具</td><td>专用文件工具(读/写/改/找)</td><td>第 2 章</td></tr>
+          <tr><td>逐次人工审批</td><td>规则化权限策略、审计、四态决定</td><td>第 3 章</td></tr>
+          <tr><td><code>cwd</code> 起始目录</td><td>真正的路径边界(<code>shell</code> 目前<b>没有</b>)</td><td>第 2、3 章</td></tr>
+          <tr><td>明确失败(<code>length</code>/<code>content_filter</code>)</td><td>截断续写、限流重试、fallback 模型</td><td>第 11 章</td></tr>
+          <tr><td>只增不减的 <code>history</code></td><td>上下文压缩与产物落盘</td><td>第 8 章</td></tr>
+          <tr><td>单个 Agent</td><td>子 Agent、多 Agent 协作</td><td>第 6、15–18 章</td></tr>
+          <tr><td>启动时固定的工具集</td><td>MCP 动态工具池</td><td>第 19 章</td></tr>
+        </table>
+        <div class="callout warn"><span class="lab">重要</span> 别把第 1 章的 <code>cwd</code> 当成沙箱。这是本章最需要强调的边界。</div>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>检查你是否真的读懂了(不看文章回答) <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li>模型返回 <code>content: "好的"</code> 且 <code>tool_calls: []</code>,循环该继续还是结束?</li>
+          <li>模型返回 <code>content: null</code> 且 <code>tool_calls: []</code>,代码该怎么做?为什么不能直接返回?</li>
+          <li>模型一轮请求了 3 个工具,其中 1 个执行失败。要往历史里 push 几条 <code>tool</code> 消息?</li>
+          <li><code>snapshot()</code> 到底防的是什么问题?</li>
+          <li>为什么 <code>maxTurns=20</code> 指的是 20 次模型请求,而不是 20 次工具调用?</li>
+        </ol>
+        <div class="callout"><span class="lab">提示</span> 答不上来的,回 <a href="#wire">真实数据流</a> 和 <a href="#concepts">核心概念</a> 再看一遍,然后做下面的测验。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="sec-desc">8 道题,选完即时看解析。全部答完显示得分。</div>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+
+  <div class="pagenav">
+    <a class="prev" href="#"><span class="lbl">上一章</span>已是第一章</a>
+    <a class="next" href="第二章glm生成.html"><span class="lbl">下一章</span>给 Agent 加一个工具,只需要加一行 →</a>
+  </div>
+</main>
+
+<footer>Agent 架构实操系列 · 交互学习版 · 第 1 章 / 共 20 章</footer>
+
+<script>
+/* ===== Agent Loop 步进模拟器 ===== */
+const turns = [
+  { role:"system", text:"你是工作区里的命令行助手。需要时调用 shell 执行 PowerShell。", tc:[], raise:null, branch:null, note:"初始:系统提示进入观察空间" },
+  { role:"user", text:"找出当前目录最大的 .ts 文件,并告诉我它有多少行。", tc:[], raise:null, branch:null, note:"第一步:用户问题进消息列表" },
+  { role:"assistant", text:"", tc:[{name:"shell",args:'Get-ChildItem -File -Filter "*.ts" | Sort-Object Length -Descending | Select-Object Name, Length'}], raise:"yes", branch:"yes", note:"第二步发给模型 → 模型举手要工具" },
+  { role:"tool", text:"Name      Length\nmain.ts   4821\nutils.ts  1190", tc:[], raise:null, branch:"yes", note:"第四步:执行 shell,结果按 tool_call_id 回填" },
+  { role:"assistant", text:"最大的是 main.ts,我来查它的行数。", tc:[{name:"shell",args:'(Get-Content .\\main.ts).Count'}], raise:"yes", branch:"yes", note:"第五步:回到第二步。模型看到历史里的结果,继续推理" },
+  { role:"tool", text:"142", tc:[], raise:null, branch:"yes", note:"再次回填" },
+  { role:"assistant", text:"当前目录最大的 .ts 文件是 main.ts,共 142 行。", tc:[], raise:"no", branch:"no", note:"tool_calls 为空 → 返回最终文本,退出循环" },
+];
+const roleLabel={system:"system",user:"user",assistant:"assistant",tool:"tool"};
+let idx=0, autoTimer=null, turnCount=0;
+const logEl=document.getElementById("log"), stepBtn=document.getElementById("stepBtn"), autoBtn=document.getElementById("autoBtn"), resetBtn=document.getElementById("resetBtn");
+const brYes=document.getElementById("brYes"), brNo=document.getElementById("brNo"), turnN=document.getElementById("turnN"), turnMax=document.getElementById("turnMax");
+turnMax.textContent=turns.filter(t=>t.role==="assistant").length;
+function renderStep(){
+  if(idx>=turns.length){ stopAuto(); stepBtn.disabled=true; return; }
+  const s=turns[idx];
+  const msg=document.createElement("div"); msg.className="msg";
+  let inner=s.text? escapeHtml(s.text) : "";
+  if(s.tc.length){
+    inner+='<div>'+s.tc.map(t=>`<span class="tc">${escapeHtml(t.name)}(${escapeHtml(t.args)})</span>`).join("")+'</div>';
+  }
+  let raise="";
+  if(s.raise==="yes") raise='<span class="raise yes">举手:要工具</span>';
+  if(s.raise==="no") raise='<span class="raise no">未举手:结束</span>';
+  msg.innerHTML=`<span class="role ${s.role}">${roleLabel[s.role]}</span><span class="content">${inner}${raise}</span>`;
+  logEl.appendChild(msg);
+  logEl.scrollTop=logEl.scrollHeight;
+  brYes.classList.toggle("active", s.branch==="yes");
+  brNo.classList.toggle("active", s.branch==="no");
+  if(s.role==="assistant"){ turnCount++; turnN.textContent=turnCount; }
+  idx++;
+}
+function resetSim(){ idx=0; turnCount=0; turnN.textContent=0; logEl.innerHTML=""; brYes.classList.remove("active"); brNo.classList.remove("active"); stepBtn.disabled=false; stopAuto(); }
+function stopAuto(){ if(autoTimer){ clearInterval(autoTimer); autoTimer=null; autoBtn.textContent="⏩ 自动播放"; } }
+function toggleAuto(){ if(autoTimer){ stopAuto(); return; } if(idx>=turns.length) resetSim(); autoBtn.textContent="⏸ 暂停"; autoTimer=setInterval(()=>{ if(idx>=turns.length){ stopAuto(); stepBtn.disabled=true; return; } renderStep(); }, 900); }
+stepBtn.onclick=()=>{ if(idx<turns.length) renderStep(); };
+autoBtn.onclick=toggleAuto;
+resetBtn.onclick=resetSim;
+function escapeHtml(s){ return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+resetSim();
+
+/* ===== QA 测验 ===== */
+const questions=[
+  { q:"Agent Loop 让模型和真实世界之间的什么角色自动化了?", o:["Planner(规划器)","Memory(记忆)","「人工 API」——手动把工具结果传回模型的中间层","Orchestrator(编排器)"], a:2,
+    e:"文章明确:你在对话框和终端之间来回粘贴命令与输出,做的就是「人工 API」。Agent Loop 把这个中间层自动化,是它要做的唯一一件事。" },
+  { q:"循环靠哪一个信号决定继续还是退出?", o:["模型是否输出了文本","assistant.tool_calls 是否非空","finish_reason 是否为 stop","maxTurns 是否达到"], a:1,
+    e:"唯一需要感知的信号是 tool_calls 是否非空。非空→执行→回填→继续;为空→返回最终文本(无文本则失败)。" },
+  { q:"下面哪种情况循环会退出?", o:["模型一边说话一边调工具","模型只调工具不说话","模型说话且不调工具","模型什么都没做但 history 很长"], a:2,
+    e:"退出条件不是「说完了」而是「没调工具」。说话+不调工具=正常退出;只调工具=继续;无文本无工具=明确失败。" },
+  { q:"为什么循环要写成带 maxTurns 的有界 for,而不是 while(true)?", o:["为了节省 token","避免模型一直调工具导致程序永不退出","为了让 finish_reason 更稳定","因为 OpenAI API 要求"], a:1,
+    e:"配套实现把它写成带最大轮次的 for 循环,保证循环一定结束,防止模型无限调工具让程序挂死。" },
+  { q:"工具结果消息靠哪个字段和前面的调用配对?", o:["role","content","tool_call_id","finish_reason"], a:2,
+    e:"每个 tool 结果都有独立 role:\"tool\" 消息,通过 tool_call_id 和前面的调用一一对应——OpenAI 格式的硬要求,一个调用必须且只得到一个同 ID 结果。" },
+  { q:"关于「shell 的 cwd 是沙箱」,正确说法是?", o:["是,cwd 限制了命令能访问的范围","是,只要不切目录就安全","不是,审批≠隔离,PowerShell 仍可访问绝对路径、网络、子进程","是,因为有 y/N 审批"], a:2,
+    e:"cwd 只是子进程起始目录,命令仍可切目录、访问绝对路径、启动进程、访问网络。审批不等于隔离。真正的规则合并在第 3 章,在此之前绝不能把 cwd 描述成 sandbox。" },
+  { q:"Claude Code 的 query.ts 约 1729 行,核心循环只几十行,剩下的是什么?", o:["更多的工具定义","全是保护、恢复和优化机制","更多的 Prompt 模板","UI 和日志代码"], a:1,
+    e:"剩下的全是保护机制:流式 needsFollowUp 标志、10 字段的 State、8 条退出路径、StreamingToolExecutor 并行执行等。核心循环本身始终没变。" },
+  { q:"按文章的公式,Agent 由哪三件事组成?", o:["Planner + Memory + Orchestrator","模型决策 + Harness 执行 + 消息历史传递","系统提示 + 工具 + 配置文件","LLM + 数据库 + 前端"], a:1,
+    e:"Agent = 模型决策(智能)+ Harness 执行(机械循环)+ 消息历史传递(记忆)。即 Agent = LLM + 上下文 + 工具。Planner/Memory/Orchestrator 都是叠加能力。" },
+];
+const quizBox=document.getElementById("quizBox");
+const answered={};
+questions.forEach((q,i)=>{
+  const item=document.createElement("div"); item.className="q-item";
+  let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${escapeHtml(t)}</label>`).join("");
+  item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${escapeHtml(q.q)}</div>${opts}<div class="explanation" id="exp${i}"></div>`;
+  quizBox.appendChild(item);
+});
+const resultBox=document.createElement("div"); resultBox.className="quiz-result"; resultBox.id="quizResult"; resultBox.style.display="none"; quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{
+  const lbl=ev.target.closest(".opt"); if(!lbl) return;
+  const i=+lbl.dataset.i, j=+lbl.dataset.j;
+  if(answered[i]!==undefined) return;
+  answered[i]=j;
+  const q=questions[i];
+  const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);
+  opts.forEach((o,k)=>{
+    o.classList.add("disabled");
+    if(k===q.a) o.classList.add("correct");
+    if(k===j && j!==q.a) o.classList.add("wrong");
+  });
+  const exp=document.getElementById("exp"+i);
+  exp.className="explanation show "+(j===q.a?"ok":"bad");
+  exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+(String.fromCharCode(65+q.a))}</b> ${q.e}`;
+  checkResult();
+});
+function checkResult(){
+  if(Object.keys(answered).length<questions.length) return;
+  const score=questions.filter((q,i)=>answered[i]===q.a).length;
+  resultBox.style.display="block";
+  const pct=Math.round(score/questions.length*100);
+  let msg=pct===100?"🏆 满分!Agent Loop 的核心你已经吃透了":pct>=75?"👏 不错,再扫一眼错题就稳了":pct>=50?"💪 过半了,重看「两个信号」和退出条件":"📚 建议重读核心概念卡和模拟器再来";
+  resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;
+  resultBox.scrollIntoView({behavior:"smooth",block:"center"});
+}
+</script>
+</body>
+</html>

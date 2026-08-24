@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第十四章 让 Agent 学会看表：Cron 调度器的设计与实现 （Agent架构实操）</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#131a2e; --panel2:#1a2338; --line:#2a3550;
+    --text:#e8edf7; --muted:#9aa7c2; --accent:#5b8cff; --accent2:#8b5bff;
+    --ok:#3ecf8e; --bad:#ff5d6c; --warn:#ffc24b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.16), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(139,91,255,.14), transparent 55%),
+      var(--bg);
+    color:var(--text); line-height:1.7; min-height:100vh;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1060px; margin:0 auto; padding:28px 20px 80px}
+
+  /* header */
+  header.top{
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:linear-gradient(135deg,#151d33,#101527);
+    padding:28px 30px; position:relative; overflow:hidden;
+  }
+  .badge-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px}
+  .badge{
+    font-size:12px; padding:3px 10px; border-radius:20px; letter-spacing:.5px;
+    background:rgba(91,140,255,.12); color:#9db8ff; border:1px solid rgba(91,140,255,.35);
+  }
+  .badge.ch{border-color:rgba(139,91,255,.5); color:#c3abff; background:rgba(139,91,255,.14)}
+  h1.top-title{font-size:clamp(20px,3vw,28px); line-height:1.45; margin-bottom:10px}
+  .tagline{color:var(--muted); font-size:15px}
+  .overview{margin-top:16px; background:rgba(0,0,0,.18); border-left:3px solid var(--accent); padding:12px 16px; border-radius:8px; color:#cdd6ea; font-size:14.5px}
+
+  /* progress */
+  .progress{border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin:18px 0; background:var(--panel)}
+  .progress-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .progress-bar{flex:1 1 220px; height:8px; border-radius:6px; background:#25314f; overflow:hidden}
+  .progress-fill{height:100%; width:0%; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .5s ease}
+  .progress-txt{font-size:13px; color:var(--muted)}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px}
+  .chips a{
+    width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:8px; font-size:12px; color:var(--muted);
+  }
+  .chips a.active{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border-color:transparent; font-weight:700}
+  .chips a:hover{color:var(--text); border-color:var(--accent)}
+
+  /* section */
+  section{margin-top:28px}
+  .sec-head{display:flex; align-items:center; gap:12px; font-size:19px; font-weight:700; margin-bottom:16px}
+  .sec-head .idx{
+    width:30px; height:30px; flex:0 0 30px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; font-size:14px; color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+  }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px}
+
+  /* goals */
+  .goals{display:grid; gap:10px; margin:0}
+  .goals li{
+    list-style:none; display:flex; gap:10px; align-items:flex-start;
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14.5px;
+  }
+  .goals li::before{content:"✔"; color:var(--ok); font-weight:700}
+
+  /* knowledge */
+  .know{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .know-title{font-size:16px; font-weight:700; margin-bottom:6px; color:#cdd9f7}
+  .know-body{color:#cdd6ea; font-size:14.5px}
+  .code{
+    margin-top:12px; background:#0a0f1d; border:1px solid #22304d; border-radius:10px;
+    padding:14px 16px; overflow-x:auto; font-size:13px; line-height:1.6;
+    font-family:"Cascadia Code",Consolas,monospace; color:#a8e6cf;
+  }
+  .code code{font-family:inherit}
+
+  /* flow */
+  .flow{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
+  .flow-step{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .flow-num{width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(91,140,255,.18); color:#9db8ff; font-size:13px; font-weight:700; margin-bottom:8px}
+  .flow-step b{font-size:14px}
+  .flow-step p{color:var(--muted); font-size:12.5px; margin-top:4px}
+
+  /* glossary */
+  .gloss{display:flex; gap:12px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:10px; background:var(--panel2); font-size:14px}
+  .gloss-term{flex:0 0 200px; color:var(--warn); font-weight:700; font-family:"Cascadia Code",Consolas,monospace; font-size:13.5px}
+  @media(max-width:640px){.gloss-term{flex-basis:120px}}
+
+  /* quiz */
+  .quiz-item{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .quiz-q{font-size:15.5px; font-weight:600; margin-bottom:12px}
+  .quiz-q span{color:var(--accent)}
+  .quiz-opts{display:grid; gap:8px}
+  .quiz-opt{
+    display:flex; align-items:center; gap:12px; text-align:left;
+    background:#141c31; color:var(--text); border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px; cursor:pointer; font-size:14px; transition:.15s;
+    font-family:inherit;
+  }
+  .quiz-opt:hover{border-color:var(--accent); background:#1a2440}
+  .quiz-opt .opt-key{
+    width:24px; height:24px; flex:0 0 24px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:7px; font-size:12px; color:var(--muted); font-weight:700;
+  }
+  .quiz-opt.correct{border-color:var(--ok); background:rgba(62,207,142,.1)}
+  .quiz-opt.correct .opt-key{background:var(--ok); color:#06281a; border-color:var(--ok)}
+  .quiz-opt.wrong{border-color:var(--bad); background:rgba(255,93,108,.1)}
+  .quiz-opt.wrong .opt-key{background:var(--bad); color:#2c0810; border-color:var(--bad)}
+  .quiz-opt:disabled{cursor:default; opacity:.85}
+  .quiz-feedback{margin-top:12px; display:flex; gap:10px; align-items:flex-start}
+  .quiz-feedback .fb-icon{font-size:18px; line-height:1.4}
+  .quiz-feedback .fb-text{font-size:14px; color:#cdd6ea}
+  .quiz-feedback.correct{color:var(--ok); border:1px solid rgba(62,207,142,.4); background:rgba(62,207,142,.07); padding:10px 14px; border-radius:10px}
+  .quiz-feedback.wrong{color:var(--bad); border:1px solid rgba(255,93,108,.4); background:rgba(255,93,108,.07); padding:10px 14px; border-radius:10px}
+  .hidden{display:none}
+  .quiz-bar{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px}
+  .quiz-bar .score{font-size:14px; color:var(--muted)}
+  .quiz-bar .score b{color:var(--text)}
+  .btn-reset{
+    background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer;
+    padding:7px 14px; border-radius:10px; font-size:13px; transition:.15s; font-family:inherit;
+  }
+  .btn-reset:hover{color:var(--text); border-color:var(--accent)}
+
+  /* review */
+  .review-list{list-style:none; display:grid; gap:10px}
+  .review-list li{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:11px 16px; font-size:14px; display:flex; gap:10px}
+  .review-list li::before{content:"▶"; color:var(--accent); font-size:12px}
+
+  /* nav */
+  .nav{margin-top:34px; display:flex; justify-content:space-between; gap:10px}
+  .nav-btn{
+    padding:11px 18px; border-radius:12px; border:1px solid var(--line); background:var(--panel2);
+    color:var(--text); font-size:14px; transition:.15s;
+  }
+  .nav-btn:hover{border-color:var(--accent); text-decoration:none; background:#1c2745}
+  .nav-btn.disabled{opacity:.4; cursor:default; color:var(--muted)}
+  footer{margin-top:40px; text-align:center; color:#5d6b8a; font-size:12.5px; border-top:1px solid var(--line); padding-top:18px}
+
+  .to-top{
+    position:fixed; right:22px; bottom:22px; width:44px; height:44px; border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); transition:.2s; z-index:50;
+  }
+  .to-top:hover{transform:translateY(-3px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="badge-row">
+      <span class="badge ch">第 十四 章</span>
+      <span class="badge">Agent 架构实操</span>
+      <span class="badge">深入学习 · 交互式</span>
+      <span class="badge">含 QA 测试</span>
+    </div>
+    <h1 class="top-title">让 Agent 学会看表：Cron 调度器的设计与实现</h1>
+    <div class="tagline">💡 schedule_cron + JsonCronStore + CronRuntime + EventInbox 的持久 outbox。</div>
+    <div class="overview">触发权从『人』转移到『调度器』。要回答：谁解释 cron 和时区？时间到了如何持久记录工作意图？Agent 忙时事件如何不丢？触发时是否仍经过权限？</div>
+  </header>
+
+  <div class="progress">
+    <div class="progress-row">
+      <span style="font-size:13px;color:var(--muted)">本章进度</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-txt" id="progressTxt">0%</span>
+    </div>
+    <div class="chips"><a href="第一章deepseek生成.html" title="Agent Loop：一个循环，就是模型与真实世界之间的全部距离">1</a><a href="第二章deepseek生成.html" title="给 Agent 加一个工具，只需要加一行">2</a><a href="第三章deepseek生成.html" title="深度拆解复刻 Claude Code 权限系统">3</a><a href="第四章deepseek生成.html" title="顶级 AI Agent 是如何利用 Hook 解耦的">4</a><a href="第五章deepseek生成.html" title="为什么上下文越长，系统提示词越没用">5</a><a href="第六章deepseek生成.html" title="从“单兵死磕”到“分身协作”：复杂任务下 AI Agent 的工程化突围">6</a><a href="第七章deepseek生成.html" title="别再硬塞 Prompt 了！手把手教你搭建一套工业级的 Agent Skill 技能系统">7</a><a href="第八章deepseek生成.html" title="拆解复刻 Claude Code 核心设计：四级压缩法干掉上下文膨胀">8</a><a href="第九章deepseek生成.html" title="从上下文压缩到文件级持久化：彻底解决 AI Agent 的健忘症">9</a><a href="第十章deepseek生成.html" title="从“一锅炖”到“模块化”：重塑 AI Agent 的逻辑骨架">10</a><a href="第十一章deepseek生成.html" title="API 韧性即生命：决定 AI Agent 商业化成败的隐藏细节">11</a><a href="第十二章deepseek生成.html" title="实战干货：5 个工具、3 个状态，带你撸出一个生产级 Agent 任务引擎">12</a><a href="第十三章deepseek生成.html" title="从串行到异步：AI Agent 架构演进中的“慢操作”填坑指南">13</a><a class='active' href="第十四章deepseek生成.html" title="让 Agent 学会看表：Cron 调度器的设计与实现">14</a><a href="第十五章deepseek生成.html" title="解密 Claude Code 协作机制：如何通过 Inbox 注入让 AI 队友真正实现“异步通信”">15</a><a href="第十六章deepseek生成.html" title="从“单兵作战”到“自组织团队”，多 Agent 协同的必经之路">16</a><a href="第十七章deepseek生成.html" title="从“人肉派发”到“自驱轮询”：多智能体（Agent Team）去中心化协作实战">17</a><a href="第十八章deepseek生成.html" title="多 Agent 并行开发时的文件冲突，到底该怎么解">18</a><a href="第十九章deepseek生成.html" title="从静态工具到动态工具池：一次 MCP 接入让我重构了 Agent 架构">19</a><a href="第二十章deepseek生成.html" title="Agent 架构设计：工具调用、权限控制、记忆机制、上下文压缩与 MCP 集成">20</a></div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="idx">1</span> 本章要掌握的目标</div>
+    <div class="panel"><ul class="goals"><li>公具只增加 schedule_cron（cron/prompt/timezone/recurring/durable 五必填）。</li><li>cron 严格五段，本地日历计算，UTC 持久化（DST gap/fold 固定）。</li><li>Job 和 Event 分开；durable outbox 保存 pending 工作意图。</li><li>事件先入 canonical history 再 ack；触发时重新授权。</li><li>scheduler 归 JobSupervisor 管理，可等待关闭顺序。</li></ul></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">2</span> 核心知识点</div>
+    <div class="panel"><div class="know" style="--i:0">
+        <div class="know-title">问题的本质：触发权变了</div>
+        <p class="know-body">手动触发链路是人→Agent；定时触发是 Scheduler→Agent。scheduler 只判断时间并产生事件，不直接绕过 Loop 执行业务工具。</p>
+        <pre class="code"><code>schedule_cron 工具
+  → JsonCronStore（job + next slot + outbox）
+  → CronRuntime（tick 发布事件）
+  → AgentRunner.runEvents()（event-only turn，工具过权限）</code></pre>
+      </div><div class="know" style="--i:1">
+        <div class="know-title">cron 解析用成熟库</div>
+        <p class="know-body">严格五段（分钟 小时 日 月 星期），交给 cron-parser。DOM 与 DOW 同时受约束时是 OR 语义，例如 0 9 1 * 1 表示『每月 1 号或每个周一 9 点』。</p>
+        <pre class="code"><code>* * * * *          每分钟
+0 9 * * *          每天本地 09:00
+*/15 9-10 * * 1,3,5  周一/三/五 9-10 每15分
+0 9 1 * 1         每月1号或每周一 09:00（OR）</code></pre>
+      </div><div class="know" style="--i:2">
+        <div class="know-title">时区：本地日历计算，UTC 持久化</div>
+        <p class="know-body">工具要求显式 IANA 时区。cron-parser 在本地日历算下一次，再转回 UTC 存 next_run_at_utc / last_slot_at_utc / slot_at_utc。</p>
+        <pre class="code"><code>nextCronOccurrence(&quot;0 9 * * *&quot;, &quot;Asia/Shanghai&quot;,
+  new Date(&quot;2026-06-01T00:30:00Z&quot;))
+→ &quot;2026-06-01T01:00:00.000Z&quot;</code></pre>
+      </div><div class="know" style="--i:3">
+        <div class="know-title">Job 和 Event 必须分开</div>
+        <p class="know-body">CronJob 是未来时间规则，CronEvent 是已到期的工作意图。到期时同一次状态迁移：创建 CronEvent → 放入 outbox → recurring 推进 nextRun / one-shot 删除定义但 event 留在 outbox。</p>
+        <pre class="code"><code>到期原子动作:
+1. 创建带稳定 UUID 的 CronEvent
+2. 放入 outbox
+3. recurring 更新 last_slot 并推进 next_run
+4. one-shot 删除定义，event 留在 outbox</code></pre>
+      </div><div class="know" style="--i:4">
+        <div class="know-title">durable 原子快照 + 两个锁</div>
+        <p class="know-body">state.json 是 durable job 与 outbox 的唯一权威快照；损坏不静默忽略。.cron.lock 保护快照读改写，leader.lock 选出唯一 durable scheduler。</p>
+        <pre class="code"><code>workspace/.agent_tutorial/cron/state.json  {&quot;jobs&quot;:[...],&quot;outbox&quot;:[...]}
+.cron.lock      保护 durable 快照原子读改写
+leader.lock     限制同一 workspace 只有一个 durable scheduler</code></pre>
+      </div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">3</span> 机制流程</div>
+    <div class="panel"><div class="flow"><div class="flow-step"><span class="flow-num">1</span><div><b>schedule_cron</b><p>解析五段 cron + 时区；验证 durable/recurring；写入 store。</p></div></div><div class="flow-step"><span class="flow-num">2</span><div><b>CronRuntime.tick</b><p>读当前 UTC → store.tick() → 发布 pending 事件到 EventInbox。</p></div></div><div class="flow-step"><span class="flow-num">3</span><div><b>runEvents()</b><p>空闲时执行 event-only turn；忙时不 ack，事件保留。</p></div></div><div class="flow-step"><span class="flow-num">4</span><div><b>重新授权</b><p>用保存的 identity 构造新 ToolContext；工具仍过 Hook 与权限。</p></div></div></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">4</span> 术语表</div>
+    <div class="panel"><div class="gloss"><span class="gloss-term">CronJob</span>未来的时间规则（cron/prompt/timezone/recurring/durable/identity/next slot）。</div><div class="gloss"><span class="gloss-term">CronEvent</span>某一个已经到期的工作意图（eventId/jobId/identity/prompt/slotAtUtc）。</div><div class="gloss"><span class="gloss-term">durable outbox</span>未确认事件与 job 一起持久化；事件确认前不删除工作意图。</div><div class="gloss"><span class="gloss-term">leader.lock</span>避免多个 session 对同一 durable slot 重复投递。</div><div class="gloss"><span class="gloss-term">DST gap/fold</span>时区跳动；持久化实际 UTC instant 而非含混本地串。</div></div>
+  </section>
+
+  <section id="quiz">
+    <div class="sec-head"><span class="idx">5</span> QA 测试环节（自测题）</div>
+    <div class="panel">
+      <div class="quiz-bar">
+        <span class="score">已完成 <b id="doneCount">0</b> / 6 · 答对 <b id="correctCount">0</b></span>
+        <button type="button" class="btn-reset" id="resetBtn">↺ 重新开始</button>
+      </div>
+      <div id="quizList"><div class="quiz-item" data-answer="1" data-index="0">
+        <div class="quiz-q"><span>Q1.</span> cron 触发后，Agent 忙时事件如何？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>丢失</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>保留在 inbox/outbox，空闲后才进入 event-only turn</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>强行打断模型</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>转成错误</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="1">
+        <div class="quiz-q"><span>Q2.</span> one-shot 到期时？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>直接删除 job 且 event 也删</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>删除定义但 event 留在 outbox，直到被确认</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>保留 job 一直触发</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>报错</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="2">
+        <div class="quiz-q"><span>Q3.</span> durable 的边界是？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>应用关闭后继续运行</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>下次启动时恢复规则与未确认事件；scheduler 仍属于进程</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>永久持久化到云</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>只在内存</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="3">
+        <div class="quiz-q"><span>Q4.</span> DOM/DOW 同时受约束时的语义是？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>AND</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>OR</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>看模型</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>无效表达式</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="4">
+        <div class="quiz-q"><span>Q5.</span> cron 触发时执行的工具？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>绕过权限</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>仍按当前 PermissionPolicy 重新授权</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>只读可执行</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>必须人工审批</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="5">
+        <div class="quiz-q"><span>Q6.</span> Agent 停机几天后重启，recurring job 会？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>补发几千个历史分钟</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>最多为最早遗漏 slot 产生一个 event，然后推进到 now 之后</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>全部重跑</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>停止</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">6</span> 验证与实验</div>
+    <div class="panel"><ul class="review-list"><li>npm run test:ch14 五组聚焦测试覆盖表达式、store、runtime、组合根与入口。</li><li>验证 UTC instant、DST、outbox 容量、leader 单一投递、close 等待。</li><li>npm run ch14 -- --prompt &quot;每天上海时间 9 点检查 CI，周期执行并持久化&quot;</li></ul></div>
+  </section>
+
+  <nav class="nav"><a class="nav-btn" href="第十三章deepseek生成.html">← 上一章 第十三章</a> <a class="nav-btn" href="第十五章deepseek生成.html">第十五章 →</a></nav>
+
+  <footer>交互式学习页 · 由教程文档生成 · 第 十四 章 · 含 6 道自测题</footer>
+</div>
+
+<button class="to-top" id="toTop" title="回到顶部">↑</button>
+
+<script>
+(function () {
+  const total = 6;
+  const doneKey = "quiz_done_" + 14;
+  const correctKey = "quiz_correct_" + 14;
+  const pickedKey = "quiz_picked_" + 14;
+
+  function load(name) { try { return JSON.parse(localStorage.getItem(name) || "null"); } catch { return null; } }
+  function save(name, val) { try { localStorage.setItem(name, JSON.stringify(val)); } catch {} }
+
+  let done = load(doneKey) || 0;
+  let correct = load(correctKey) || 0;
+  let picked = load(pickedKey) || {};
+
+  // --- 进度 ---
+  function updateProgress() {
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const fill = document.getElementById("progressFill");
+    const txt = document.getElementById("progressTxt");
+    if (fill) fill.style.width = pct + "%";
+    if (txt) txt.textContent = pct + "%";
+    const dc = document.getElementById("doneCount");
+    const cc = document.getElementById("correctCount");
+    if (dc) dc.textContent = done;
+    if (cc) cc.textContent = correct;
+  }
+
+  // --- 给每个题目的选项绑定事件 ---
+  document.querySelectorAll(".quiz-item").forEach(function (item) {
+    const qi = item.getAttribute("data-index");
+    const answer = Number(item.getAttribute("data-answer"));
+    const opts = item.querySelectorAll(".quiz-opt");
+
+    function reveal(selectedIndex) {
+      opts.forEach(function (opt, oi) {
+        opt.disabled = true;
+        if (oi === answer) opt.classList.add("correct");
+        else if (oi === selectedIndex) opt.classList.add("wrong");
+      });
+
+      const fb = item.querySelector(".quiz-feedback");
+      const why = ["忙时事件留在 inbox/outbox，不会被 ack，空闲再处理。","有独立 outbox，进程恰好在删除后崩溃也不丢工作。","durable 指进程重启后可恢复，不是应用关闭后继续运行。","标准 cron（cron-parser 默认）在两者都约束时用 OR。","cron prompt 只是未来要交给 Agent 的输入，不是权限票据。","每次 tick 后 slot 推进，不会瞬间补发历史时刻。"][qi];
+      const isCorrect = selectedIndex === answer;
+      fb.classList.remove("hidden", "correct", "wrong");
+      fb.classList.add(isCorrect ? "correct" : "wrong");
+      fb.innerHTML =
+        '<div class="fb-icon">' + (isCorrect ? "✅" : "❌") + "</div>" +
+        '<div class="fb-text"><b>' + (isCorrect ? "回答正确！" : "回答错误") + "</b><br><span style='color:var(--muted);font-size:13px'>解析：" + (why || "") + "</span></div>";
+    }
+
+    opts.forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        const oi = Number(opt.getAttribute("data-oi"));
+        if (picked[qi] !== undefined) return; // 已作答
+        picked[qi] = oi;
+        save(pickedKey, picked);
+        done += 1;
+        if (oi === answer) correct += 1;
+        save(doneKey, done);
+        save(correctKey, correct);
+        reveal(oi);
+        updateProgress();
+      });
+    });
+
+    // 若是切换页面回来，恢复已显示的状态
+    if (picked[qi] !== undefined) {
+      opts.forEach(function (opt, oi) {
+        if (oi === picked[qi]) {
+          opt.click(); // 触发一次以显示反馈（对答案时正确/错误会计算，但因 picked 已存在而不再重复计数）
+        }
+      });
+    }
+  });
+
+  // 恢复已作答（直接渲染反馈，不重复计数）
+  (function restore() {
+    document.querySelectorAll(".quiz-item").forEach(function (item) {
+      const qi = item.getAttribute("data-index");
+      const answer = Number(item.getAttribute("data-answer"));
+      const sel = picked[qi];
+      if (sel === undefined) return;
+      const opts = item.querySelectorAll(".quiz-opt");
+      const fb = item.querySelector(".quiz-feedback");
+      const why = ["忙时事件留在 inbox/outbox，不会被 ack，空闲再处理。","有独立 outbox，进程恰好在删除后崩溃也不丢工作。","durable 指进程重启后可恢复，不是应用关闭后继续运行。","标准 cron（cron-parser 默认）在两者都约束时用 OR。","cron prompt 只是未来要交给 Agent 的输入，不是权限票据。","每次 tick 后 slot 推进，不会瞬间补发历史时刻。"][qi];
+      const isCorrect = sel === answer;
+      opts.forEach(function (opt, oi) {
+        opt.disabled = true;
+        if (oi === answer) opt.classList.add("correct");
+        else if (oi === sel) opt.classList.add("wrong");
+      });
+      fb.classList.remove("hidden", "correct", "wrong");
+      fb.classList.add(isCorrect ? "correct" : "wrong");
+      fb.innerHTML =
+        '<div class="fb-icon">' + (isCorrect ? "✅" : "❌") + "</div>" +
+        '<div class="fb-text"><b>' + (isCorrect ? "回答正确！" : "回答错误") + "</b><br><span style='color:var(--muted);font-size:13px'>解析：" + (why || "") + "</span></div>";
+    });
+    updateProgress();
+  })();
+
+  // --- 重置 ---
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (!confirm("确定要清空本章的答题记录并重新开始吗？")) return;
+    done = 0; correct = 0; picked = {};
+    save(doneKey, done); save(correctKey, correct); save(pickedKey, picked);
+    location.reload();
+  });
+
+  // --- 回到顶部 ---
+  const toTop = document.getElementById("toTop");
+  toTop.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+
+  updateProgress();
+})();
+</script>
+</body>
+</html>

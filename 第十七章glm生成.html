@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 17 章 · 从人肉派发到自驱轮询</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  .ws-sim{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .ws-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .ws-board{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:monospace;font-size:.8rem;min-height:160px}
+  .ws-task{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;margin:4px 0;background:var(--surface2);border:1px solid var(--border)}
+  .ws-task .tid{color:var(--faint);width:30px}.ws-task .tsub{flex:1}.ws-task .tst{font-size:.68rem;padding:1px 6px;border-radius:4px}.tst.pending{background:var(--surface);color:var(--muted)}.tst.in_progress{background:rgba(251,191,36,.15);color:var(--warn)}.tst.completed{background:rgba(74,222,128,.15);color:var(--ok)}.tst.locked{background:rgba(248,113,113,.15);color:var(--bad)}
+  .ws-task .own{font-size:.7rem;color:var(--accent)}
+  .ws-state{margin-top:12px;padding:10px;border-radius:8px;background:var(--surface2);font-size:.82rem}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 17 章</span>
+  <span class="title">从人肉派发到自驱轮询 <span class="muted">· Agent架构实操十七</span></span>
+  <nav><a href="#concepts">概念</a><a href="#sim">工作窃取演示</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>从「人肉派发」到「自驱轮询」:去中心化协作</h1>
+    <div class="sub">10个任务手动发10次勉强,有依赖就得盯着谁完成、谁解锁、下一项给谁。队友越多中心协调者越忙。真正的自治:空闲时从共享任务板找到当前可做的工作,且只让一个 worker 获得它。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 15 分钟</span>
+      <span class="pill">🗂 SQLite TaskStore</span>
+      <span class="pill">🔄 work stealing</span>
+      <span class="pill">+TASK_DAG_SQLITE+WORK_STEALING</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>为什么不能继续「先扫 JSON 再写 owner」?TOCTOU 经典问题是什么?</li>
+        <li>为什么用 SQLite + BEGIN IMMEDIATE?给单个文件补 fcntl.flock 行吗?</li>
+        <li>work stealing 的事务步骤是什么?</li>
+        <li>claim token / lease 各是什么?lease 过期怎么办?</li>
+        <li>协议优先是什么?shutdown/plan 响应送达时能先拿新任务吗?</li>
+        <li>P17 是迁移还是独立后端?会双写吗?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 为什么不能「先扫 JSON 再写 owner」 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>第12-16章的 JSON Task DAG 适合展示领域模型,但 work stealing 引入新原子边界:</p>
+        <pre><code>读取全部 pending task
+-> 过滤依赖已完成项
+-> 按稳定顺序选第一项
+-> 写入 owner、claim token、lease</code></pre>
+        <p>如果「扫描」和「认领」是两个独立步骤,出现经典 TOCTOU:</p>
+        <pre><code>Alice 扫描:C 可认领
+Bob   扫描:C 可认领
+Alice 写入:owner = alice
+Bob   写入:owner = bob</code></pre>
+        <div class="callout bad"><span class="lab">fcntl.flock 不行</span> 它没覆盖「跨多个任务选第一项」的事务,也不是 Windows 11 的统一锁接口。</div>
+      </div>
+    </details>
+    <details class="card"><summary>2 · SQLite + BEGIN IMMEDIATE 事务 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>BEGIN IMMEDIATE
+-> 回收已到期 lease
+-> 在同一快照中加载并验证 DAG
+-> 按数据库 sequence 查找首个 ready task
+-> 条件 UPDATE pending -> in_progress
+-> COMMIT</code></pre>
+        <p>BEGIN IMMEDIATE 在写事务开始时取得保留锁。两进程可同时发起认领,但状态选择和条件更新被串行化;后进入事务的 worker 会看到前一个事务已提交的结果。</p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · claim token 和 lease <span class="chev">▸</span></summary>
+      <div class="body">
+        <p><b>claim token</b>:认领成功后生成的一次性凭证,证明「这项任务现在归我」。后续 complete_task 必须携带正确 token,防止他人冒充完成。</p>
+        <p><b>lease</b>:租约,有到期时间。worker 崩溃或长时间不完成时,lease 过期后任务可被回收(事务开始时先回收已到期 lease),重新变为可认领。这避免任务被死 worker 永久占用。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 协议优先 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>shutdown 或计划响应已经送达时,<b>协议先处理,不能先拿新任务</b>。idle Teammate 在 scanning 前先检查是否有待处理的协议消息(shutdown_request/plan_approval_response)。</p>
+        <p>这保证控制信号优先:Lead 让 Alice 停,Alice 不会先抢一个新任务再停;Lead 批准了 Bob 的计划,Bob 先看到批准再决定是否认领新任务。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 独立后端,不迁移不双写 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>P17 数据写入 <code>.agent_tutorial/tasks.sqlite3</code>,不读取也不写入第12章的 JSON Task DAG 文件。<b>不是迁移,不是双写</b>:P17 的 SQLite 是本章任务图的唯一后端。</p>
+        <p>组合根根据 capability 选择 store:有 task_dag_sqlite 用 SQLite,否则用 JSON。同一 workspace 不会同时有两个后端活跃。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:work stealing</h2>
+    <div class="sec-desc">点「Alice 抢」「Bob 抢」看 SQLite 事务如何保证只有一个 worker 认领同一任务。C 依赖 A、B,都完成后才可认领。</div>
+    <div class="ws-sim">
+      <div class="ws-ctrl">
+        <button class="btn primary" id="alice">🧑 Alice 抢一个 ready</button>
+        <button class="btn" id="bob">🧒 Bob 抢一个 ready</button>
+        <button class="btn" id="complete">✅ 完成进行中的</button>
+        <button class="btn" id="reset">↺ 重置</button>
+      </div>
+      <div class="ws-board" id="board"></div>
+      <div class="ws-state" id="state"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">SQLite BEGIN IMMEDIATE 把「扫描+选+认领」变成一个原子事务,TOCTOU 消失,只有一个 worker 拿到</div>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第十六章glm生成.html"><span class="lbl">上一章</span>← 自组织团队</a>
+    <a class="next" href="第十八章glm生成.html"><span class="lbl">下一章</span>文件冲突 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 17 章 / 共 20 章</footer>
+<script>
+let tasks=[
+  {id:"A",sub:"建库表",status:"pending",owner:null,dep:[]},
+  {id:"B",sub:"写接口",status:"pending",owner:null,dep:[]},
+  {id:"C",sub:"加测试",status:"pending",owner:null,dep:["A","B"]},
+];
+const board=document.getElementById("board"),stateEl=document.getElementById("state");
+function ready(t){return t.status==="pending"&&t.dep.every(d=>tasks.find(x=>x.id===d).status==="completed");}
+function render(){
+  board.innerHTML=tasks.map(t=>`<div class="ws-task"><span class="tid">${t.id}</span><span class="tsub">${t.sub}</span>${t.owner?`<span class="own">${t.owner}</span>`:""}<span class="tst ${t.status==='pending'&&!ready(t)?'locked':t.status}">${t.status==='pending'?!ready(t)?'locked':'pending':t.status}</span></div>`).join("");
+  stateEl.innerHTML=`ready(可认领):<b style="color:var(--ok)">${tasks.filter(ready).length}</b> · in_progress:<b style="color:var(--warn)">${tasks.filter(t=>t.status==="in_progress").length}</b> · completed:<b>${tasks.filter(t=>t.status==="completed").length}</b>`;
+}
+function steal(worker){
+  const t=tasks.find(ready);
+  if(!t){stateEl.innerHTML=`<b style="color:var(--bad)">${worker} 没抢到:没有ready任务(SQLite事务返回空)</b>`;return;}
+  t.status="in_progress";t.owner=worker;render();
+}
+document.getElementById("alice").onclick=()=>steal("alice");
+document.getElementById("bob").onclick=()=>steal("bob");
+document.getElementById("complete").onclick=()=>{
+  const t=tasks.find(t=>t.status==="in_progress");
+  if(!t){stateEl.innerHTML=`<b style="color:var(--bad)">没有进行中的任务</b>`;return;}
+  t.status="completed";render();
+};
+document.getElementById("reset").onclick=()=>{tasks=[{id:"A",sub:"建库表",status:"pending",owner:null,dep:[]},{id:"B",sub:"写接口",status:"pending",owner:null,dep:[]},{id:"C",sub:"加测试",status:"pending",owner:null,dep:["A","B"]}];render();};
+render();
+
+const questions=[
+  {q:"为什么不能「先扫 JSON 再写 owner」?",o:["JSON太慢","扫描和认领是两个独立步骤会出现TOCTOU:Alice和Bob同时扫描到C可认领,各自写入owner导致冲突","JSON不支持并发","文件锁不够"],a:1,e:"TOCTOU(Time Of Check To Time Of Use):Alice扫描C可认领,Bob也扫描C可认领,Alice写入owner=alice,Bob写入owner=bob。扫描和认领必须是同一原子事务。"},
+  {q:"为什么用 SQLite + BEGIN IMMEDIATE?fcntl.flock 行吗?",o:["fcntl.flock更好","BEGIN IMMEDIATE在写事务开始取得保留锁,状态选择和条件更新被串行化;fcntl.flock没覆盖跨多任务选第一项的事务,也不是Windows统一锁接口","随便哪个都行","不需要锁"],a:1,e:"BEGIN IMMEDIATE取得保留锁,两进程可同时发起认领但被串行化,后进入事务的worker看到前一个已提交结果。事务内:回收lease→加载验证DAG→找首个ready→条件UPDATE pending→in_progress→COMMIT。"},
+  {q:"work stealing 事务的步骤顺序?",o:["先认领再扫描","BEGIN IMMEDIATE→回收已到期lease→加载验证DAG→按sequence找首个ready→条件UPDATE→COMMIT","先UPDATE再扫描","先COMMIT再UPDATE"],a:1,e:"先回收已到期lease(清理死worker占用),再在同一快照加载验证DAG,按数据库sequence稳定顺序找首个ready,条件UPDATE pending→in_progress,COMMIT。整个是一个原子事务。"},
+  {q:"claim token 和 lease 分别是什么?",o:["都是密码","claim token是认领后一次性凭证(完成时必须携带);lease是租约有到期,过期可被回收重新认领","都是过期时间","claim token是密码,lease是队列"],a:1,e:"claim token证明「这项任务现在归我」,complete_task必须携带正确token防止冒充完成。lease有到期时间,worker崩溃或长时间不完成时lease过期,事务开始时先回收,任务重新可认领,避免被死worker永久占用。"},
+  {q:"协议优先是什么?shutdown 响应送达时能先拿新任务吗?",o:["能,先拿任务","不能:shutdown或计划响应已送达时协议先处理,不能先拿新任务","无所谓","取决于worker"],a:1,e:"idle Teammate在scanning前先检查待处理协议消息(shutdown_request/plan_approval_response)。保证控制信号优先:Lead让Alice停,Alice不会先抢新任务再停;Lead批准Bob计划,Bob先看批准再决定认领。"},
+  {q:"P17 是迁移还是双写?",o:["迁移JSON到SQLite","独立后端,不迁移不双写:P17的SQLite是本章任务图唯一后端,不读也不写第12章的JSON文件","双写","两者都活跃"],a:1,e:"数据写入.agent_tutorial/tasks.sqlite3。组合根根据capability选store:有task_dag_sqlite用SQLite否则用JSON。同一workspace不会同时有两个后端活跃。"},
+  {q:"验收场景中,A 和 B 都完成后,C 会怎样?",o:["两人都能认领C","只被第一个成功提交事务的空闲队友认领","自动完成","被两人同时认领"],a:1,e:"C依赖A和B。A或B单独完成时C仍不可认领。A、B都完成后,C只被第一个成功提交事务的空闲队友认领(BEGIN IMMEDIATE串行化,后进入的看到前一个已提交结果)。"},
+  {q:"稳定顺序选第一项的作用?",o:["随机","按数据库sequence稳定顺序选首个ready,保证不同worker在不同事务中选到一致结果,避免抖动","按名字长度","按时间"],a:1,e:"按数据库sequence稳定顺序查找首个ready task。这保证不同worker在不同事务中选到一致结果:第一个ready总被选,避免两个worker各自选不同任务导致不公平或某些任务饥饿。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!工作窃取你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看TOCTOU和SQLite事务":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

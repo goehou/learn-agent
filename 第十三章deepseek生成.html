@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第十三章 从串行到异步：AI Agent 架构演进中的“慢操作”填坑指南 （Agent架构实操）</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#131a2e; --panel2:#1a2338; --line:#2a3550;
+    --text:#e8edf7; --muted:#9aa7c2; --accent:#5b8cff; --accent2:#8b5bff;
+    --ok:#3ecf8e; --bad:#ff5d6c; --warn:#ffc24b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.16), transparent 60%),
+      radial-gradient(1000px 500px at 90% 0%, rgba(139,91,255,.14), transparent 55%),
+      var(--bg);
+    color:var(--text); line-height:1.7; min-height:100vh;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1060px; margin:0 auto; padding:28px 20px 80px}
+
+  /* header */
+  header.top{
+    border:1px solid var(--line); border-radius:var(--radius);
+    background:linear-gradient(135deg,#151d33,#101527);
+    padding:28px 30px; position:relative; overflow:hidden;
+  }
+  .badge-row{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px}
+  .badge{
+    font-size:12px; padding:3px 10px; border-radius:20px; letter-spacing:.5px;
+    background:rgba(91,140,255,.12); color:#9db8ff; border:1px solid rgba(91,140,255,.35);
+  }
+  .badge.ch{border-color:rgba(139,91,255,.5); color:#c3abff; background:rgba(139,91,255,.14)}
+  h1.top-title{font-size:clamp(20px,3vw,28px); line-height:1.45; margin-bottom:10px}
+  .tagline{color:var(--muted); font-size:15px}
+  .overview{margin-top:16px; background:rgba(0,0,0,.18); border-left:3px solid var(--accent); padding:12px 16px; border-radius:8px; color:#cdd6ea; font-size:14.5px}
+
+  /* progress */
+  .progress{border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin:18px 0; background:var(--panel)}
+  .progress-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .progress-bar{flex:1 1 220px; height:8px; border-radius:6px; background:#25314f; overflow:hidden}
+  .progress-fill{height:100%; width:0%; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .5s ease}
+  .progress-txt{font-size:13px; color:var(--muted)}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px}
+  .chips a{
+    width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:8px; font-size:12px; color:var(--muted);
+  }
+  .chips a.active{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border-color:transparent; font-weight:700}
+  .chips a:hover{color:var(--text); border-color:var(--accent)}
+
+  /* section */
+  section{margin-top:28px}
+  .sec-head{display:flex; align-items:center; gap:12px; font-size:19px; font-weight:700; margin-bottom:16px}
+  .sec-head .idx{
+    width:30px; height:30px; flex:0 0 30px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:9px; font-size:14px; color:#fff;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+  }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px}
+
+  /* goals */
+  .goals{display:grid; gap:10px; margin:0}
+  .goals li{
+    list-style:none; display:flex; gap:10px; align-items:flex-start;
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14.5px;
+  }
+  .goals li::before{content:"✔"; color:var(--ok); font-weight:700}
+
+  /* knowledge */
+  .know{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .know-title{font-size:16px; font-weight:700; margin-bottom:6px; color:#cdd9f7}
+  .know-body{color:#cdd6ea; font-size:14.5px}
+  .code{
+    margin-top:12px; background:#0a0f1d; border:1px solid #22304d; border-radius:10px;
+    padding:14px 16px; overflow-x:auto; font-size:13px; line-height:1.6;
+    font-family:"Cascadia Code",Consolas,monospace; color:#a8e6cf;
+  }
+  .code code{font-family:inherit}
+
+  /* flow */
+  .flow{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px}
+  .flow-step{background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .flow-num{width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(91,140,255,.18); color:#9db8ff; font-size:13px; font-weight:700; margin-bottom:8px}
+  .flow-step b{font-size:14px}
+  .flow-step p{color:var(--muted); font-size:12.5px; margin-top:4px}
+
+  /* glossary */
+  .gloss{display:flex; gap:12px; padding:10px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:10px; background:var(--panel2); font-size:14px}
+  .gloss-term{flex:0 0 200px; color:var(--warn); font-weight:700; font-family:"Cascadia Code",Consolas,monospace; font-size:13.5px}
+  @media(max-width:640px){.gloss-term{flex-basis:120px}}
+
+  /* quiz */
+  .quiz-item{border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px; background:var(--panel2)}
+  .quiz-q{font-size:15.5px; font-weight:600; margin-bottom:12px}
+  .quiz-q span{color:var(--accent)}
+  .quiz-opts{display:grid; gap:8px}
+  .quiz-opt{
+    display:flex; align-items:center; gap:12px; text-align:left;
+    background:#141c31; color:var(--text); border:1px solid var(--line);
+    border-radius:10px; padding:10px 14px; cursor:pointer; font-size:14px; transition:.15s;
+    font-family:inherit;
+  }
+  .quiz-opt:hover{border-color:var(--accent); background:#1a2440}
+  .quiz-opt .opt-key{
+    width:24px; height:24px; flex:0 0 24px; display:inline-flex; align-items:center; justify-content:center;
+    border:1px solid var(--line); border-radius:7px; font-size:12px; color:var(--muted); font-weight:700;
+  }
+  .quiz-opt.correct{border-color:var(--ok); background:rgba(62,207,142,.1)}
+  .quiz-opt.correct .opt-key{background:var(--ok); color:#06281a; border-color:var(--ok)}
+  .quiz-opt.wrong{border-color:var(--bad); background:rgba(255,93,108,.1)}
+  .quiz-opt.wrong .opt-key{background:var(--bad); color:#2c0810; border-color:var(--bad)}
+  .quiz-opt:disabled{cursor:default; opacity:.85}
+  .quiz-feedback{margin-top:12px; display:flex; gap:10px; align-items:flex-start}
+  .quiz-feedback .fb-icon{font-size:18px; line-height:1.4}
+  .quiz-feedback .fb-text{font-size:14px; color:#cdd6ea}
+  .quiz-feedback.correct{color:var(--ok); border:1px solid rgba(62,207,142,.4); background:rgba(62,207,142,.07); padding:10px 14px; border-radius:10px}
+  .quiz-feedback.wrong{color:var(--bad); border:1px solid rgba(255,93,108,.4); background:rgba(255,93,108,.07); padding:10px 14px; border-radius:10px}
+  .hidden{display:none}
+  .quiz-bar{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:16px}
+  .quiz-bar .score{font-size:14px; color:var(--muted)}
+  .quiz-bar .score b{color:var(--text)}
+  .btn-reset{
+    background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer;
+    padding:7px 14px; border-radius:10px; font-size:13px; transition:.15s; font-family:inherit;
+  }
+  .btn-reset:hover{color:var(--text); border-color:var(--accent)}
+
+  /* review */
+  .review-list{list-style:none; display:grid; gap:10px}
+  .review-list li{background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:11px 16px; font-size:14px; display:flex; gap:10px}
+  .review-list li::before{content:"▶"; color:var(--accent); font-size:12px}
+
+  /* nav */
+  .nav{margin-top:34px; display:flex; justify-content:space-between; gap:10px}
+  .nav-btn{
+    padding:11px 18px; border-radius:12px; border:1px solid var(--line); background:var(--panel2);
+    color:var(--text); font-size:14px; transition:.15s;
+  }
+  .nav-btn:hover{border-color:var(--accent); text-decoration:none; background:#1c2745}
+  .nav-btn.disabled{opacity:.4; cursor:default; color:var(--muted)}
+  footer{margin-top:40px; text-align:center; color:#5d6b8a; font-size:12.5px; border-top:1px solid var(--line); padding-top:18px}
+
+  .to-top{
+    position:fixed; right:22px; bottom:22px; width:44px; height:44px; border-radius:50%;
+    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; border:none;
+    display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); transition:.2s; z-index:50;
+  }
+  .to-top:hover{transform:translateY(-3px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="badge-row">
+      <span class="badge ch">第 十三 章</span>
+      <span class="badge">Agent 架构实操</span>
+      <span class="badge">深入学习 · 交互式</span>
+      <span class="badge">含 QA 测试</span>
+    </div>
+    <h1 class="top-title">从串行到异步：AI Agent 架构演进中的“慢操作”填坑指南</h1>
+    <div class="tagline">💡 shell 三态 run_in_background；占位结果 + typed 完成后事件回流。</div>
+    <div class="overview">工具调用可以先返回后台占位，再在完成后通过 typed RuntimeEvent 回到同一个 Agent Loop。后台只改变谁等待结果，不改变谁拥有权限。</div>
+  </header>
+
+  <div class="progress">
+    <div class="progress-row">
+      <span style="font-size:13px;color:var(--muted)">本章进度</span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <span class="progress-txt" id="progressTxt">0%</span>
+    </div>
+    <div class="chips"><a href="第一章deepseek生成.html" title="Agent Loop：一个循环，就是模型与真实世界之间的全部距离">1</a><a href="第二章deepseek生成.html" title="给 Agent 加一个工具，只需要加一行">2</a><a href="第三章deepseek生成.html" title="深度拆解复刻 Claude Code 权限系统">3</a><a href="第四章deepseek生成.html" title="顶级 AI Agent 是如何利用 Hook 解耦的">4</a><a href="第五章deepseek生成.html" title="为什么上下文越长，系统提示词越没用">5</a><a href="第六章deepseek生成.html" title="从“单兵死磕”到“分身协作”：复杂任务下 AI Agent 的工程化突围">6</a><a href="第七章deepseek生成.html" title="别再硬塞 Prompt 了！手把手教你搭建一套工业级的 Agent Skill 技能系统">7</a><a href="第八章deepseek生成.html" title="拆解复刻 Claude Code 核心设计：四级压缩法干掉上下文膨胀">8</a><a href="第九章deepseek生成.html" title="从上下文压缩到文件级持久化：彻底解决 AI Agent 的健忘症">9</a><a href="第十章deepseek生成.html" title="从“一锅炖”到“模块化”：重塑 AI Agent 的逻辑骨架">10</a><a href="第十一章deepseek生成.html" title="API 韧性即生命：决定 AI Agent 商业化成败的隐藏细节">11</a><a href="第十二章deepseek生成.html" title="实战干货：5 个工具、3 个状态，带你撸出一个生产级 Agent 任务引擎">12</a><a class='active' href="第十三章deepseek生成.html" title="从串行到异步：AI Agent 架构演进中的“慢操作”填坑指南">13</a><a href="第十四章deepseek生成.html" title="让 Agent 学会看表：Cron 调度器的设计与实现">14</a><a href="第十五章deepseek生成.html" title="解密 Claude Code 协作机制：如何通过 Inbox 注入让 AI 队友真正实现“异步通信”">15</a><a href="第十六章deepseek生成.html" title="从“单兵作战”到“自组织团队”，多 Agent 协同的必经之路">16</a><a href="第十七章deepseek生成.html" title="从“人肉派发”到“自驱轮询”：多智能体（Agent Team）去中心化协作实战">17</a><a href="第十八章deepseek生成.html" title="多 Agent 并行开发时的文件冲突，到底该怎么解">18</a><a href="第十九章deepseek生成.html" title="从静态工具到动态工具池：一次 MCP 接入让我重构了 Agent 架构">19</a><a href="第二十章deepseek生成.html" title="Agent 架构设计：工具调用、权限控制、记忆机制、上下文压缩与 MCP 集成">20</a></div>
+  </div>
+
+  <section>
+    <div class="sec-head"><span class="idx">1</span> 本章要掌握的目标</div>
+    <div class="panel"><ul class="goals"><li>shell 三态：run_in_background=true 强制后台 / false 强制同步 / null 启发式。</li><li>后台提交必须在权限之后：Pre 阻断或权限拒绝时不创建 job。</li><li>原始 tool_call_id 立即得到唯一占位结果，真实结果作为 BackgroundJobEvent 回流。</li><li>后台 job 状态机 running → completed/failed/timed_out/cancelled，含 interrupted 恢复。</li><li>先落盘再启动 worker；重启把遗留 running 迁移为 interrupted 且不重放。</li></ul></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">2</span> 核心知识点</div>
+    <div class="panel"><div class="know" style="--i:0">
+        <div class="know-title">三态参数</div>
+        <p class="know-body">true 强制后台；false 强制同步；null/省略才用启发式（cargo build/compile/deploy/docker build/npm install/pip install/pytest 等关键词）。工具定义中的 concurrency: background_eligible 是第二道门。</p>
+        <pre class="code"><code>const backgroundShellInputSchema = z.strictObject({
+  command: z.string().min(1),
+  run_in_background: z.boolean().nullable().optional().default(null),
+});
+
+function shouldRunInBackground(input) {
+  if (input.run_in_background !== undefined &amp;&amp; input.run_in_background !== null)
+    return input.run_in_background;
+  return markers.some(m =&gt; input.command.toLowerCase().includes(m));
+}</code></pre>
+      </div><div class="know" style="--i:1">
+        <div class="know-title">为什么提交必须在权限之后</div>
+        <p class="know-body">Pre Hook 阻断时，不创建 job；权限拒绝时，不创建 job、不启动 executor、不调用 shell handler；权限通过后才按『容量检查→持久化 running→登记 worker』提交。</p>
+        <pre class="code"><code>parse + validate → Pre Hook → PermissionPolicy → dispatcher
+  → 容量检查 → 持久化 running → 登记 worker → 返回占位</code></pre>
+      </div><div class="know" style="--i:2">
+        <div class="know-title">占位结果与完成事件</div>
+        <p class="know-body">后台命令未完成时，原始 tool_call_id 立即得到占位：{job_id, status:running, tool_name}。真实结果作为 BackgroundJobEvent 注入为普通 user 消息（不是带 tool_call_id 的工具结果）。</p>
+        <pre class="code"><code>占位: {&quot;job_id&quot;:&quot;...&quot;,&quot;status&quot;:&quot;running&quot;,&quot;tool_name&quot;:&quot;shell&quot;}
+事件: {&quot;runtime_event&quot;:{...&quot;status&quot;:&quot;completed&quot;,&quot;result&quot;:{&quot;content&quot;:&quot;404 passed&quot;}},
+       &quot;batch&quot;:{&quot;index&quot;:0,&quot;total&quot;:1}}</code></pre>
+      </div><div class="know" style="--i:3">
+        <div class="know-title">后台 job 不是 Task 第四状态</div>
+        <p class="know-body">Task 仍是 pending→in_progress→completed。后台 job 表示一次已授权执行尝试：running→completed/failed/timed_out/cancelled；restart 用 interrupted。running 无结果，每个终态有 ToolResult。</p>
+        <pre class="code"><code>running -&gt; completed
+        -&gt; failed
+        -&gt; timed_out
+        -&gt; cancelled
+restart:  running -&gt; interrupted（重启不重放）</code></pre>
+      </div><div class="know" style="--i:4">
+        <div class="know-title">事件怎样回到同一个 Loop</div>
+        <p class="know-body">每轮模型请求前 drain events；模型暂时返回无工具文本而仍有 active job 时，事件泵等待终态事件，在同一个 run() 中继续下一次模型请求。事件按 eventId 去重并带 batch 位置。</p>
+        <pre class="code"><code>let events = pump.drainEvents();
+if (!events.length &amp;&amp; waitForPendingWork &amp;&amp; pump.hasPendingWork)
+  events = await pump.waitForEvents();
+for (const [i, ev] of injected.entries())
+  history.push(runtimeEventMessage(ev, { index: i, total: injected.length }));</code></pre>
+      </div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">3</span> 机制流程</div>
+    <div class="panel"><div class="flow"><div class="flow-step"><span class="flow-num">1</span><div><b>schedule + 权限通过</b><p>PreToolUse → 权限 → 后台提交（不在之前）。</p></div></div><div class="flow-step"><span class="flow-num">2</span><div><b>落盘 running + 启动 worker</b><p>容量 4、单 job 超时 120s、关闭时限 10s。</p></div></div><div class="flow-step"><span class="flow-num">3</span><div><b>返回占位结果</b><p>闭合当前工具轮，快工具继续。</p></div></div><div class="flow-step"><span class="flow-num">4</span><div><b>终态事件回流</b><p>BackgroundJobEvent → EventInbox → 普通 user 消息。</p></div></div><div class="flow-step"><span class="flow-num">5</span><div><b>query/cancel</b><p>query_background_job / cancel_background_job 按 job_id。</p></div></div></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">4</span> 术语表</div>
+    <div class="panel"><div class="gloss"><span class="gloss-term">BackgroundDispatcher</span>判断同步或后台，提交已获批的调用。</div><div class="gloss"><span class="gloss-term">JobSupervisor</span>持有 worker，控制容量、超时、取消、关闭、终态。</div><div class="gloss"><span class="gloss-term">EventInbox</span>FIFO 传递 typed RuntimeEvent。</div><div class="gloss"><span class="gloss-term">interrupted</span>进程重启后对遗留 running 的重启迁移，不重放。</div><div class="gloss"><span class="gloss-term">background_capacity</span>容量满载时返回的错误码。</div></div>
+  </section>
+
+  <section id="quiz">
+    <div class="sec-head"><span class="idx">5</span> QA 测试环节（自测题）</div>
+    <div class="panel">
+      <div class="quiz-bar">
+        <span class="score">已完成 <b id="doneCount">0</b> / 6 · 答对 <b id="correctCount">0</b></span>
+        <button type="button" class="btn-reset" id="resetBtn">↺ 重新开始</button>
+      </div>
+      <div id="quizList"><div class="quiz-item" data-answer="1" data-index="0">
+        <div class="quiz-q"><span>Q1.</span> run_in_background 的三态语义是？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>true/false/省略=默认后台</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>true 强制后台 / false 强制同步 / null 走启发式</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>只有布尔</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>只有启发式</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="1">
+        <div class="quiz-q"><span>Q2.</span> 权限拒绝时后台 job 会？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>创建但暂停</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>不创建、不启动 executor、handler 零调用</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>执行后审计</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>转为提示</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="2">
+        <div class="quiz-q"><span>Q3.</span> 后台命令未完成时，原始 tool_call_id 得到？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>空</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>一个唯一占位结果（job_id/status/tool_name）</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>最终结果</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>错误</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="3">
+        <div class="quiz-q"><span>Q4.</span> 重启后遗留的 running job 会？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>直接重跑命令</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>迁移为 interrupted 并发布一次中断事件，不重放</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>保持 running 永远</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>被删除</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="4">
+        <div class="quiz-q"><span>Q5.</span> 同一条 assistant 消息里快工具与慢工具的关系是？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>慢工具阻塞全部</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>快工具先在当前轮完成，慢工具得到占位后续回来</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>全部转后台</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>全部串行等待</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div><div class="quiz-item" data-answer="1" data-index="5">
+        <div class="quiz-q"><span>Q6.</span> 取消工具返回什么？</div>
+        <div class="quiz-opts">
+          <button type="button" class="quiz-opt" data-oi="0"><span class="opt-key">A</span><span>刚发起取消的中间状态</span></button><button type="button" class="quiz-opt" data-oi="1"><span class="opt-key">B</span><span>取消后的最终 job payload（cancelled + 稳定错误结果）</span></button><button type="button" class="quiz-opt" data-oi="2"><span class="opt-key">C</span><span>只返回 ok</span></button><button type="button" class="quiz-opt" data-oi="3"><span class="opt-key">D</span><span>什么都不返回</span></button>
+        </div>
+        <div class="quiz-feedback hidden"></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="idx">6</span> 验证与实验</div>
+    <div class="panel"><ul class="review-list"><li>npm run test:ch13 覆盖三态判断、typed-only inbox、成功/异常、容量、超时、取消、关闭、重启中断。</li><li>npm run ch13 -- --prompt &quot;后台运行 npm test，同时读取 README.md；拿到结果后再总结&quot;</li><li>注意：background 工具只给 P13 主 Agent，subagent 与 P01-P12 不可见。</li></ul></div>
+  </section>
+
+  <nav class="nav"><a class="nav-btn" href="第十二章deepseek生成.html">← 上一章 第十二章</a> <a class="nav-btn" href="第十四章deepseek生成.html">第十四章 →</a></nav>
+
+  <footer>交互式学习页 · 由教程文档生成 · 第 十三 章 · 含 6 道自测题</footer>
+</div>
+
+<button class="to-top" id="toTop" title="回到顶部">↑</button>
+
+<script>
+(function () {
+  const total = 6;
+  const doneKey = "quiz_done_" + 13;
+  const correctKey = "quiz_correct_" + 13;
+  const pickedKey = "quiz_picked_" + 13;
+
+  function load(name) { try { return JSON.parse(localStorage.getItem(name) || "null"); } catch { return null; } }
+  function save(name, val) { try { localStorage.setItem(name, JSON.stringify(val)); } catch {} }
+
+  let done = load(doneKey) || 0;
+  let correct = load(correctKey) || 0;
+  let picked = load(pickedKey) || {};
+
+  // --- 进度 ---
+  function updateProgress() {
+    const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+    const fill = document.getElementById("progressFill");
+    const txt = document.getElementById("progressTxt");
+    if (fill) fill.style.width = pct + "%";
+    if (txt) txt.textContent = pct + "%";
+    const dc = document.getElementById("doneCount");
+    const cc = document.getElementById("correctCount");
+    if (dc) dc.textContent = done;
+    if (cc) cc.textContent = correct;
+  }
+
+  // --- 给每个题目的选项绑定事件 ---
+  document.querySelectorAll(".quiz-item").forEach(function (item) {
+    const qi = item.getAttribute("data-index");
+    const answer = Number(item.getAttribute("data-answer"));
+    const opts = item.querySelectorAll(".quiz-opt");
+
+    function reveal(selectedIndex) {
+      opts.forEach(function (opt, oi) {
+        opt.disabled = true;
+        if (oi === answer) opt.classList.add("correct");
+        else if (oi === selectedIndex) opt.classList.add("wrong");
+      });
+
+      const fb = item.querySelector(".quiz-feedback");
+      const why = ["true 强制后台，false 强制同步，null/省略才用启发式。","后台提交在权限之后；权限拒绝不创建 job。","占位结果闭合当前工具轮，满足配对契约。","下一次构造 supervisor 时迁移为 interrupted，且第二次重建不重放。","这就是后台化的意义：慢的占位闭合轮次，快工具继续执行。","先等 worker 收束并落盘，再重新读取最终状态。"][qi];
+      const isCorrect = selectedIndex === answer;
+      fb.classList.remove("hidden", "correct", "wrong");
+      fb.classList.add(isCorrect ? "correct" : "wrong");
+      fb.innerHTML =
+        '<div class="fb-icon">' + (isCorrect ? "✅" : "❌") + "</div>" +
+        '<div class="fb-text"><b>' + (isCorrect ? "回答正确！" : "回答错误") + "</b><br><span style='color:var(--muted);font-size:13px'>解析：" + (why || "") + "</span></div>";
+    }
+
+    opts.forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        const oi = Number(opt.getAttribute("data-oi"));
+        if (picked[qi] !== undefined) return; // 已作答
+        picked[qi] = oi;
+        save(pickedKey, picked);
+        done += 1;
+        if (oi === answer) correct += 1;
+        save(doneKey, done);
+        save(correctKey, correct);
+        reveal(oi);
+        updateProgress();
+      });
+    });
+
+    // 若是切换页面回来，恢复已显示的状态
+    if (picked[qi] !== undefined) {
+      opts.forEach(function (opt, oi) {
+        if (oi === picked[qi]) {
+          opt.click(); // 触发一次以显示反馈（对答案时正确/错误会计算，但因 picked 已存在而不再重复计数）
+        }
+      });
+    }
+  });
+
+  // 恢复已作答（直接渲染反馈，不重复计数）
+  (function restore() {
+    document.querySelectorAll(".quiz-item").forEach(function (item) {
+      const qi = item.getAttribute("data-index");
+      const answer = Number(item.getAttribute("data-answer"));
+      const sel = picked[qi];
+      if (sel === undefined) return;
+      const opts = item.querySelectorAll(".quiz-opt");
+      const fb = item.querySelector(".quiz-feedback");
+      const why = ["true 强制后台，false 强制同步，null/省略才用启发式。","后台提交在权限之后；权限拒绝不创建 job。","占位结果闭合当前工具轮，满足配对契约。","下一次构造 supervisor 时迁移为 interrupted，且第二次重建不重放。","这就是后台化的意义：慢的占位闭合轮次，快工具继续执行。","先等 worker 收束并落盘，再重新读取最终状态。"][qi];
+      const isCorrect = sel === answer;
+      opts.forEach(function (opt, oi) {
+        opt.disabled = true;
+        if (oi === answer) opt.classList.add("correct");
+        else if (oi === sel) opt.classList.add("wrong");
+      });
+      fb.classList.remove("hidden", "correct", "wrong");
+      fb.classList.add(isCorrect ? "correct" : "wrong");
+      fb.innerHTML =
+        '<div class="fb-icon">' + (isCorrect ? "✅" : "❌") + "</div>" +
+        '<div class="fb-text"><b>' + (isCorrect ? "回答正确！" : "回答错误") + "</b><br><span style='color:var(--muted);font-size:13px'>解析：" + (why || "") + "</span></div>";
+    });
+    updateProgress();
+  })();
+
+  // --- 重置 ---
+  document.getElementById("resetBtn").addEventListener("click", function () {
+    if (!confirm("确定要清空本章的答题记录并重新开始吗？")) return;
+    done = 0; correct = 0; picked = {};
+    save(doneKey, done); save(correctKey, correct); save(pickedKey, picked);
+    location.reload();
+  });
+
+  // --- 回到顶部 ---
+  const toTop = document.getElementById("toTop");
+  toTop.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+
+  updateProgress();
+})();
+</script>
+</body>
+</html>

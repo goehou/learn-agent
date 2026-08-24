@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 5 章 · Agent 失忆症与会话级 TODO</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  /* todo sim */
+  .todo{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .todo-list{margin:0;padding:0;list-style:none}
+  .todo-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:8px;margin:6px 0;background:var(--surface2);font-size:.88rem}
+  .todo-item .box{width:20px;height:20px;border-radius:5px;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:.8rem}
+  .todo-item.pending .box{border-color:var(--muted)}.todo-item.in_progress .box{border-color:var(--warn);background:rgba(251,191,36,.15)}.todo-item.completed .box{border-color:var(--ok);background:var(--ok);color:#0f1117}
+  .todo-item .txt{flex:1}.todo-item.completed .txt{text-decoration:line-through;color:var(--muted)}
+  .todo-item .tag{font-size:.68rem;padding:1px 7px;border-radius:999px;font-weight:700}.tag.pending{background:var(--surface);color:var(--muted)}.tag.in_progress{background:rgba(251,191,36,.15);color:var(--warn)}.tag.completed{background:rgba(74,222,128,.15);color:var(--ok)}
+  .todo-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+  .nag-box{margin-top:14px;padding:14px;border-radius:10px;border:1px solid var(--border);background:var(--code-bg);font-size:.85rem}
+  .nag-meter{display:flex;gap:4px;margin:8px 0}.nag-cell{flex:1;height:10px;border-radius:3px;background:var(--surface2)}.nag-cell.fill{background:var(--warn)}
+  .nag-status{font-family:monospace;font-size:.82rem}.nag-remind{display:none;margin-top:8px;padding:8px 10px;border-radius:6px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:var(--warn);font-size:.82rem}.nag-remind.show{display:block}
+  .rounds{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:.78rem;color:var(--muted)}
+  .round{padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:var(--surface2);font-family:monospace}.round.todo{border-color:var(--ok);color:var(--ok)}.round.nag{border-color:var(--warn);color:var(--warn)}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 5 章</span>
+  <span class="title">Agent 失忆症与会话级 TODO <span class="muted">· Agent架构实操五</span></span>
+  <nav><a href="#guide">导读</a><a href="#glossary">术语</a><a href="#concepts">概念</a><a href="#sim">TODO 演示</a><a href="#run">运行</a><a href="#recap">小结</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>为什么上下文越长,系统提示词越没用?</h1>
+    <div class="sub">十步重构任务,第三步被报错占住注意力,最初计划只出现一次却要和大量局部信息竞争。本章加一个会话级 <code>todo_write</code>:让模型反复提交完整计划快照,连续三轮没更新就提醒一次。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 12 分钟</span>
+      <span class="pill">📋 完整快照替换</span>
+      <span class="pill">🔔 三轮 Nag 提醒</span>
+      <span class="pill">+todo capability</span>
+    </div>
+  </div>
+  <section id="guide">
+    <h2><span class="num">🎯</span> 本章导读</h2>
+    <div class="sec-desc">读完这一章,你应该能用一句话回答下面每个问题。</div>
+    <div class="callout"><span class="lab">读完能做到</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>解释为什么长任务里丢的不是「目标」而是「进度」,以及为什么进度必须被显式记成结构化状态。</li>
+        <li>用 Zod 定义一份唯一输入契约,写一个「整体替换」的 TODO 快照工具。</li>
+        <li>说出「一口快照」为什么不需要回滚:校验全过才赋值,失败连新对象都不创建。</li>
+        <li>说明为什么提醒必须只进当次请求、不污染正式历史,以及按什么计数。</li>
+        <li>跑通第 5 章:让 Agent 先建立 TODO 再执行,观察提醒在第几次请求出现。</li>
+      </ol>
+    </div>
+
+    <details class="card">
+      <summary>你需要先具备什么 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>需要</th><th>说明</th></tr><tr><td>读完第 1—4 章</td><td>会看 Agent Loop、Zod、prepare/permission/invoke、Hook 即可</td></tr><tr><td>TypeScript</td><td>能看懂 interface、readonly、Object.freeze</td></tr><tr><td>Transformer 常识</td><td>知道「注意力检索」大致是什么。这一章不做数学推导</td></tr></table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>建议的阅读路线 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>本章导读(你在这)
+  ↓
+① 先看一眼真实的一次运行    ← 一次任务两条关键日志
+  ↓
+② 先明确:长上下文不是靠后权重大
+  ↓
+③ Zod 契约 + 完整快照      ← 一、二
+  ↓
+④ 稳定 JSON + 会话状态     ← 三、四
+  ↓
+⑤ 系统提示只管"什么时候用" + Nag 计数  ← 五、六
+  ↓
+⑥ 当次注入 + 副作用标签     ← 七、八
+  ↓
+⑦ 失败不破坏旧快照 + 离线证明  ← 九、十
+  ↓
+⑧ 运行 + 实验 + 差异        ← 十一~十四
+  ↓
+⑨ 小结                     ← 三句话 + 七条 + 边界 + 自测</code></pre>
+        <div class="callout"><span class="lab">最该记住的一句</span> 长任务里丢的不是「目标」,是「进度」——目标在开头出现过一次,进度从来没被显式记录。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="glossary">
+    <h2><span class="num">📇</span> 术语速查</h2>
+    <div class="sec-desc">本章第一次出现的词。先扫一眼,正文里遇到不认识的词回来查即可。<b>不用背</b>。</div>
+    <table>
+      <tr><th style="width:30%">术语</th><th>一句话解释</th></tr>
+      <tr><td><b>完整快照</b></td><td>模型每次提交的整份 TODO 状态,整体替换上一份,不是增量 diff</td></tr>
+      <tr><td><b>静态系统提示</b></td><td>system 里一份固定文案;只告诉模型「什么时候该更新」,不携带进度数据</td></tr>
+      <tr><td><b>Nag Reminder</b></td><td>按工具轮计数注入的「提醒你刷新 TODO」提示。只在当次请求出现</td></tr>
+      <tr><td><b>漏写即删除</b></td><td>整体替换没有隐式 merge:漏写一项 = 删除一项</td></tr>
+      <tr><td><code>\uXXXX</code> 转义</td><td>返回的 JSON 里中文被转义(如 编写 → \u7f16\u5199),保证字节级稳定可断言</td></tr>
+      <tr><td><b>会话状态</b></td><td>todo 快照和陈旧计数都属于「会话」,做成单例会串台</td></tr>
+      <tr><td><b>陈旧工具轮</b></td><td>连续 N 次有工具调用但模型没有提交快照的轮次</td></tr>
+      <tr><td><b>STALE_TOOL_ROUNDS</b></td><td>陈旧阈值,默认 3;「计数到 3」和「注入提醒」不在同一次请求</td></tr>
+    </table>
+  </section>
+
+  <section id="wire">
+    <h2><span class="num">📡</span> 先看一眼真实的一次运行</h2>
+    <div class="sec-desc">一次成功的快照提交 + 提醒到底在第几次请求出现。</div>
+    <details class="card" open>
+      <summary>一次成功的快照提交 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>模型调用 <code>todo_write</code> 后,工具把整份 TODO 以 tool result 回填,消息历史里从此就有了一份「最新进度」——这就是模型的显式记忆。</p>
+      </div>
+    </details>
+    <details class="card">
+      <summary>提醒到底在第几次请求出现 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>请求1  模型连续调用工具(读文件)            陈旧计数 0→1
+请求2  模型又调工具,没提交快照            陈旧计数 1→2
+请求3  模型又调工具,没提交快照            陈旧计数 2→3
+请求4  beforeModel: 计数已到 3 → 注入提醒,清零   ← 第 4 次请求看到提醒
+       模型看到提醒 → 调 todo_write 提交快照</code></pre>
+        <div class="callout warn"><span class="lab">为什么不是第 3 次</span>「计数到 3」和「注入提醒」不在同一次请求:第 3 次请求时计数刚好到 3,注入发生在第 4 次请求前。</div>
+      </div>
+    </details>
+  </section>
+
+  <section id="concepts">
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · 长上下文不是「越靠后权重越高」 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>Transformer 根据内容动态计算注意力,不能简单理解为「后面 token 一定比前面重要」。但长任务有三个现实问题:</p>
+        <ul><li>工具输出不断增长,早期目标要与更多内容竞争注意力;</li><li>相似日志和局部错误反复出现,模型更围绕眼前问题继续生成;</li><li>最初计划只描述「要做什么」,却没持续提供「做到哪一步」。</li></ul>
+        <p>系统提示写「不要忘记计划」只能表达原则,不能保存任务状态。本章思路:把计划变成结构化状态,通过工具结果把最新快照放回消息流。</p>
+        <div class="callout warn"><span class="lab">能力边界</span> TODO 能降低偏航概率,不能证明任务完成。最终结果仍要由测试/静态检查等可观察验收确认。</div>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 完整快照,不是增量命令 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>没有 todo_add/update/remove 三组增量接口,只有一个整体替换工具。完整快照更适合模型:</p>
+        <ul><li>当前状态只由最后一次成功调用决定,易解释和重放;</li><li>不需要处理「更新一个已不存在的索引」的状态机;</li><li>tool result 本身包含后续推理需要的全部计划;</li><li>校验完成后只一次赋值,失败不产生半更新状态。</li></ul>
+        <p>第一步完成后,模型不能只提交「第一项已完成」,要再次提交三项完整状态。</p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · Zod:先 trim 再 min(1) <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>content: z.string()
+  .transform(c => c.trim())
+  .pipe(z.string().min(1, "todo content must not be empty")),
+status: z.enum(["pending","in_progress","completed"]),</code></pre>
+        <p>如果直接对原字符串 min(1),<code>"   "</code> 会通过长度检查。先 trim 再验证,它会稳定失败。两层 <code>.strict()</code> 都拒绝未知字段。最多 50 项。</p>
+        <div class="callout ok"><span class="lab">同源</span> ToolDefinition 持有这个 schema,Registry 既用它生成 OpenAI JSON Schema,也用它在 dispatch 前 safeParse。模型看到的契约和 handler 收到的契约同源。</div>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 状态属于会话,不是模块 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>TodoTracker 不能做成模块级单例,否则同进程创建两个 Agent 时,第二个会话会看到第一个的计划。组合根在每次 buildAgent() 时 new 一个 tracker,同一个实例既提供工具 handler,也作为工具轮观察者传给 Loop。</p>
+        <p>进程退出后状态消失,本章不做磁盘持久化(第 12 章项目 Task 才解决跨会话持久化)。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · Nag Reminder 按工具轮计数 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>一个 assistant 消息可含多个 tool call。同一轮读三个文件,提醒计数应增加<b>一次</b>不是三次。规则三条:</p>
+        <ol><li>没有工具调用,不计数;</li><li>本轮只要出现 todo_write,计数归零;</li><li>本轮有工具但没 todo_write,计数加一。</li></ol>
+        <p>达到 3 后,beforeModel() 返回一条 system guidance 并立即清零。注意「达到三轮」和「注入提醒」不是同一个请求:</p>
+        <table><tr><th>模型请求</th><th>上一轮工具</th><th>有 reminder</th><th>轮后计数</th></tr><tr><td>1</td><td>无</td><td>否</td><td>0</td></tr><tr><td>2</td><td>read_file</td><td>否</td><td>1</td></tr><tr><td>3</td><td>glob</td><td>否</td><td>2</td></tr><tr><td>4</td><td>shell</td><td><b>是</b></td><td>重置后重新计数</td></tr></table>
+      </div>
+    </details>
+    <details class="card"><summary>6 · reminder 只进当次请求,不污染历史 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>Loop 调用模型前读取 guidance,只用于构造当前 ModelRequest,<b>没有 push 进 history</b>:</p>
+        <pre><code>messages: [systemMessage(prompt), ...history, ...observerGuidance]</code></pre>
+        <p>好处:提醒靠近当前生成位置能发挥提示作用;不会永久堆积,后续请求不会看到一串过期 reminder。</p>
+        <p>recordToolRound 在所有 tool result 配对写入历史后才记录工具名——位置不能乱移,否则会打断 OpenAI 消息协议。</p>
+      </div>
+    </details>
+    <details class="card"><summary>7 · 失败不破坏旧快照 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>模型提交非法状态(<code>status:"working"</code>),路径是:JSON.parse → schema.safeParse 失败 → invalid_arguments → handler 未调用 → #todos 引用和值都不变。</p>
+        <p>状态赋值只有一个入口,只接收经 Zod 验证的输入,没有回滚问题。测试还保存更新前的数组引用,确认失败后仍是同一个快照对象。</p>
+      </div>
+    </details>
+    <details class="card"><summary>8 · write effect ≠ 磁盘写审批 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>todo_write 的 effect 是 "write"(改变会话内状态),但第 3 章审批规则精确匹配 write_file 和 edit_file,不是粗暴拦截所有 write effect。所以更新 TODO 不弹磁盘写入审批,但仍过统一权限决策并写审计。</p>
+        <div class="callout"><span class="lab">区分</span> 副作用类别描述行为性质,具体策略决定哪些行为需要人工确认。</div>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:TODO 快照 + Nag 计数器</h2>
+    <div class="sec-desc">点待办项循环状态,或点按钮模拟「调用其他工具」/「调用 todo_write」,看 Nag 计数器到 3 时如何只在下一次请求注入 reminder。</div>
+    <div class="todo">
+      <h4 style="margin:0 0 8px;font-size:.9rem;color:var(--muted)">当前完整快照(每次提交都是整体替换)</h4>
+      <ul class="todo-list" id="todoList"></ul>
+      <div class="todo-ctrl">
+        <button class="btn primary" id="otherTool">🔧 调用其他工具(read_file)</button>
+        <button class="btn" id="todoTool">📋 调用 todo_write</button>
+        <button class="btn" id="reset">↺ 重置</button>
+      </div>
+      <div class="nag-box">
+        <div class="nag-status">陈旧计数:<b id="nagN">0</b> / 3 <span style="color:var(--faint)">(本轮工具: <span id="lastTool">无</span>)</span></div>
+        <div class="nag-meter" id="meter">
+          <div class="nag-cell"></div><div class="nag-cell"></div><div class="nag-cell"></div>
+        </div>
+        <div class="rounds" id="rounds"></div>
+        <div class="nag-remind" id="remind">🔔 [system reminder] Keep the TODO list current. Call todo_write with the complete task snapshot when the plan changes. <span style="color:var(--faint)">(只进这次请求,不写进 history,且立即清零)</span></div>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">把容易丢失的计划状态从长上下文抽出来 → 变成模型每次都能稳定看到的<b>工具结果</b></div>
+    <p>显式状态优于隐式期望。系统提示是原则,不能保存「当前进度」;todo_write 把状态变成可校验、可断言、可替换的数据契约。</p>
+  </section>
+  <section id="run">
+    <h2><span class="num">🚀</span> 运行第 5 章</h2>
+    <div class="sec-desc">前置条件和前几章一样。下面几步,每步都给出预期结果。</div>
+
+    <details class="card" open>
+      <summary>第 0–1 步 · 环境与离线测试 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>Set-Location 'F:\笔记\Agent实操\code'
+npm ci
+npm run test:ch05</code></pre>
+        <pre><code> Test Files  14 passed (14)
+      Tests  109 passed (109)</code></pre>
+        <p>那行 <code>配置错误: Missing required settings: ...</code> 仍是被断言的预期输出(config.test.ts 验证缺配置时 CLI 返回退出码 2),不是失败。</p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>第 2–4 步 · 先规划再执行、观察快照、统一入口 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>npm run ch05 -- --prompt "先建立完整 TODO，再读取 README.md 并总结运行和验证步骤"
+# stderr 有 [Hook]/[Permission];模型是否先调 todo_write 取决于模型本身,
+# 系统提示是引导,不是强制门控。不调就把 prompt 写更明确。
+
+npm run ch05 -- --prompt "先用 todo_write 建立三项计划，然后原样告诉我 todo_write 返回的完整文本"
+# 模型复述出整份 {"todos":[...]},中文是 \uXXXX 形式
+
+npm run agent-tutorial -- run --chapter 5 --prompt "先建立完整 TODO，再读取 README.md 并总结运行和验证步骤"</code></pre>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>常见报错排查表 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:40%">现象</th><th>原因 / 处理</th></tr>
+          <tr><td>模型压根不调用 todo_write</td><td>系统提示只是引导。把 prompt 写明「先建立完整 TODO」;本章不强制门控</td></tr>
+          <tr><td>模型没按提醒刷新</td><td>提醒只在当次请求出现,不进历史;靠模型调用 todo_write 才算「听进去了」</td></tr>
+          <tr><td><code>invalid_arguments</code></td><td>Zod 在 prepare 拦下;旧快照没变,handler 没跑</td></tr>
+          <tr><td>改了 STALE_TOOL_ROUNDS 后测试红</td><td>todos.test.ts 断言默认 3;改完记得改回</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="verify">
+    <h2><span class="num">🧪</span> 验证与实验</h2>
+    <div class="sec-desc"><code>npm run test:ch05</code> 执行 14 个测试文件、109 个测试。四个值得亲手做的实验:</div>
+    <details class="card">
+      <summary>四个建议动手做的小实验 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:34%">实验</th><th>预期</th><th>学到什么</th></tr>
+          <tr><td><b>一·撞一次 invalid_arguments</b><br><small>提交非法 todo,断言旧快照没变</small></td><td>用 <code>toBe</code> 而非 toEqual——失败路径连新对象都没创建</td><td>Zod 在 prepare 拦下,#writeTodos 没跑</td></tr>
+          <tr><td><b>二·改已保存的快照</b><br><small>严格模式改冻结对象</small></td><td>抛 TypeError,快照值不变(需 @ts-expect-error)</td><td>readonly 只管编译期,Object.freeze 管运行时</td></tr>
+          <tr><td><b>三·STALE_TOOL_ROUNDS 改成 1</b><br><small>让模型连续读几个文件</small></td><td>几乎每次请求都带提醒</td><td>阈值不能太小——提醒本身占注意力。记得改回 3</td></tr>
+          <tr><td><b>四·一轮多个调用只算一轮</b></td><td>第一个 beforeModel 不提醒</td><td>按 assistant 消息计数,不按调用个数</td></tr>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="recap">
+    <h2><span class="num">📝</span> 本章小结</h2>
+    <div class="sec-desc">三句话版本、一定要记住的七条、以及本章<b>还没做什么</b>。</div>
+
+    <div class="callout"><span class="lab">三句话版本</span>
+      <ol style="margin:8px 0 0;padding-left:20px">
+        <li>长任务里丢的不是「目标」,是「进度」——目标在开头出现过一次,进度从来没被显式记录。</li>
+        <li>所以本章把进度做成结构化状态:模型每次提交完整快照,快照作为最新的 tool result 回到消息流。</li>
+        <li>模型忘记更新时,运行时按「连续三个陈旧工具轮」注入一条只进当次请求的提醒。</li>
+      </ol>
+    </div>
+
+    <details class="card" open>
+      <summary>一定要记住的七条 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th style="width:6%">#</th><th>结论</th><th style="width:20%">在哪一节</th></tr>
+          <tr><td>1</td><td>整体替换没有隐式 merge:漏写一项 = 删除一项</td><td>二</td></tr>
+          <tr><td>2</td><td>校验全部通过后才做一次赋值,不存在半更新,也不需要回滚</td><td>二、九</td></tr>
+          <tr><td>3</td><td>readonly 只管编译期,运行时要靠 Object.freeze</td><td>二</td></tr>
+          <tr><td>4</td><td>快照和陈旧计数都是会话状态,做成单例会串台</td><td>四</td></tr>
+          <tr><td>5</td><td>按 assistant 消息计数,一轮三个调用只算一轮</td><td>六</td></tr>
+          <tr><td>6</td><td>「计数到 3」和「注入提醒」不在同一次请求;注入后立刻清零</td><td>六</td></tr>
+          <tr><td>7</td><td>提醒进 ModelRequest,不进 #history</td><td>七</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>本章代码边界(明确「还没做什么」) <span class="chev">▸</span></summary>
+      <div class="body">
+        <table>
+          <tr><th>已经有</th><th>还没有</th><th style="width:28%">说明</th></tr>
+          <tr><td>会话内 TODO 快照</td><td>磁盘持久化、跨会话恢复</td><td>进程退出即消失。第 9 章做文件记忆</td></tr>
+          <tr><td>单一整体替换工具</td><td>依赖关系、blockedBy、并发认领</td><td>第 12、17 章做任务 DAG</td></tr>
+          <tr><td>固定「三轮」阈值</td><td>官方那种「完成 3 项却没 verification 就提醒」</td><td>刻意选固定轮数,让离线测试可确定性断言</td></tr>
+          <tr><td>一条固定文案的提醒</td><td>按任务内容动态生成</td><td>不做。动态文案无法精确断言</td></tr>
+          <tr><td>提醒只注入当次请求</td><td>提醒进入正式历史</td><td>不做。会在轨迹里累积过期提示</td></tr>
+          <tr><td>单一会话的 tracker</td><td>全局共享的 tracker</td><td>不做。见第四节串台示例</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>检查你是否真的读懂了(不看文章回答) <span class="chev">▸</span></summary>
+      <div class="body">
+        <ol>
+          <li>模型提交 3 项计划,下一次只提交 1 项,另外 2 项会怎样?</li>
+          <li>为什么快照要输出 编写 而不是直接输出中文?</li>
+          <li>TodoTracker 做成单例 export const 会出什么问题?至少说两个。</li>
+          <li>一条 assistant 消息里有 3 个工具调用,计数加几?</li>
+          <li>提醒在第几次模型请求出现?为什么不是第 3 次?</li>
+          <li>在 result.history 里能搜到 Keep the TODO list current 吗?为什么?</li>
+          <li>todo_write 的 effect 是 write,为什么不弹审批框?审计里有东西吗?</li>
+        </ol>
+      </div>
+    </details>
+  </section>
+
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第四章glm生成.html"><span class="lbl">上一章</span>← Hook 解耦</a>
+    <a class="next" href="第六章glm生成.html"><span class="lbl">下一章</span>分身协作 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 5 章 / 共 20 章</footer>
+<script>
+let todos=[
+  {content:"读取现有实现",status:"in_progress"},
+  {content:"增加失败测试",status:"pending"},
+  {content:"实现并验证修复",status:"pending"},
+];
+let nag=0, rounds=[];
+const todoListEl=document.getElementById("todoList"),nagN=document.getElementById("nagN"),meter=document.getElementById("meter"),roundsEl=document.getElementById("rounds"),remind=document.getElementById("remind"),lastTool=document.getElementById("lastTool");
+const cyc={pending:"in_progress",in_progress:"completed",completed:"pending"};
+function renderTodos(){
+  todoListEl.innerHTML=todos.map((t,i)=>`<li class="todo-item ${t.status}"><div class="box" data-i="${i}">${t.status==="completed"?"✓":t.status==="in_progress"?"⋯":""}</div><span class="txt">${t.content}</span><span class="tag ${t.status}">${t.status}</span></li>`).join("");
+}
+function renderNag(){
+  nagN.textContent=nag;
+  meter.innerHTML=[0,1,2].map(i=>`<div class="nag-cell ${i<nag?'fill':''}"></div>`).join("");
+  lastTool.textContent=rounds.length?rounds[rounds.length-1].tool:"无";
+  roundsEl.innerHTML=rounds.map(r=>`<span class="round ${r.todo?'todo':''} ${r.nag?'nag':''}">${r.label}</span>`).join("");
+  remind.classList.toggle("show",nag>=3);
+}
+function recordRound(tool){
+  const isTodo=tool==="todo_write";
+  if(isTodo){nag=0;remind.classList.remove("show");}
+  else{nag++;if(nag>=3){remind.classList.add("show");nag=0;rounds.push({tool,label:`${tool}→提醒✓`,nag:true});renderTodos();renderNag();return;}}
+  rounds.push({tool,label:tool,todo:isTodo});
+  renderTodos();renderNag();
+}
+todoListEl.addEventListener("click",e=>{const b=e.target.closest(".box");if(!b)return;const i=+b.dataset.i;todos[i].status=cyc[todos[i].status];renderTodos();});
+document.getElementById("otherTool").onclick=()=>recordRound("read_file");
+document.getElementById("todoTool").onclick=()=>recordRound("todo_write");
+document.getElementById("reset").onclick=()=>{nag=0;rounds=[];todos=[{content:"读取现有实现",status:"in_progress"},{content:"增加失败测试",status:"pending"},{content:"实现并验证修复",status:"pending"}];renderTodos();renderNag();remind.classList.remove("show");};
+renderTodos();renderNag();
+
+const questions=[
+  {q:"长上下文让早期目标失忆的根本原因是?",o:["模型记不住开头","早期计划只出现一次,却要和持续增长的工具输出/局部错误竞争注意力","Token 数量超限","系统提示词写错了"],a:1,e:"注意力擅长检索不擅长统计。初始计划只出现一次,随工具输出增长要竞争注意力。系统提示写「别忘计划」只表达原则,不能保存状态。"},
+  {q:"todo_write 为什么用完整快照而非增量命令?",o:["增量太复杂","完整快照:状态只由最后一次成功调用决定,易重放;无需处理不存在的索引;tool result 含全部计划;失败不产生半更新状态","OpenAI 要求","模型不喜欢增量"],a:1,e:"完整替换比增量更适合模型调用。第一步完成后要再次提交三项完整状态,不能只提交「第一项已完成」。"},
+  {q:"content 为什么要先 transform(trim) 再 pipe(min(1))?",o:["为了规范化","直接 min(1) 会让 \"   \" (纯空格)通过长度检查,先 trim 再验证可稳定失败","Zod 要求","性能更好"],a:1,e:"如果直接对原字符串 min(1),空白串会通过。先 trim 去掉首尾空白再验证,空白串稳定失败。两层 .strict() 拒绝未知字段。"},
+  {q:"TodoTracker 为什么不能做成模块级单例?",o:["性能问题","否则同进程创建两个 Agent 时,第二个会话会看到第一个的计划;状态必须属于会话","TypeScript 不支持","内存泄漏"],a:1,e:"组合根在每次 buildAgent() 时 new 一个 tracker。同一次运行中工具和 reminder 共用一个 tracker;两次 buildAgent 得到两个 tracker 互不影响。"},
+  {q:"一个 assistant 消息含 3 个工具调用(读3个文件),Nag 计数加几?",o:["加3","加1(按整条 assistant 消息算一轮,不是按调用数)","加0","取决于文件大小"],a:1,e:"recordToolRound 接收这一轮全部工具名。规则:没工具不计数;本轮只要出现 todo_write 归零;本轮有工具但没 todo_write 加一。整条消息算一轮。"},
+  {q:"reminder 为什么不 push 进 history?",o:["节省 token","只用于构造当次 ModelRequest,靠近当前生成位置发挥提示作用,且不会永久堆积成过期 reminder","OpenAI 不允许","会破坏配对"],a:1,e:"observerGuidance 只用于当前请求。好处:靠近生成位置发挥提示作用;不永久堆积。recordToolRound 在所有 tool result 配对写入后才记录,位置不能乱移否则打断消息协议。"},
+  {q:"模型提交非法 status(如 \"working\"),旧快照会怎样?",o:["被清空","不变:JSON.parse→schema.safeParse 失败→invalid_arguments→handler 未调用→#todos 引用和值都不变","部分更新","抛异常终止 run"],a:1,e:"状态赋值只有一个入口,只接收经 Zod 验证的输入。失败路径不触碰旧状态,没有回滚问题。测试还保存更新前数组引用确认仍是同一对象。"},
+  {q:"todo_write 的 effect 是 write,为什么不会弹磁盘写入审批?",o:["它不是真的写","第3章审批规则精确匹配 write_file/edit_file,不是粗暴拦截所有 write effect;todo_write 仍过统一权限决策并写审计","审批器坏了","模型不需要"],a:1,e:"副作用类别描述行为性质,具体策略决定哪些行为需人工确认。todo_write 改的是会话内状态不是磁盘文件。write_file/edit_file 仍要求审批。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!失忆症和 TODO 你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看完整快照和 Nag 计数":"📚 重看核心概念和演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>

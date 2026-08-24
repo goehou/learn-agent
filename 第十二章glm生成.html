@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第 12 章 · 生产级 Agent 任务引擎</title>
+<style>
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface2:#232733;--border:#2e3340;--text:#e6e8ee;--muted:#9aa0ac;--faint:#6b7280;--accent:#7c9cff;--accent2:#b07cff;--teal:#5ec8b6;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--code-bg:#11141c}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:16px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+  code{font-family:"JetBrains Mono","Fira Code",Consolas,monospace;font-size:.88em}
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:16px;overflow:auto;margin:14px 0}pre code{font-size:.85rem;line-height:1.6}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(15,17,23,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .topbar .badge{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;font-weight:800;padding:4px 12px;border-radius:8px;font-size:.8rem}
+  .topbar .title{font-weight:600;font-size:.92rem;flex:1;min-width:200px}.topbar .title .muted{color:var(--muted);font-weight:400}
+  .topbar nav{display:flex;gap:6px;flex-wrap:wrap}.topbar nav a{color:var(--muted);font-size:.8rem;padding:4px 8px;border-radius:6px}.topbar nav a:hover{background:var(--surface2);color:var(--text);text-decoration:none}
+  .btn{cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);padding:7px 14px;border-radius:8px;font-size:.85rem;font-weight:600;transition:.15s}.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0f1117;border:none}.btn.primary:hover{filter:brightness(1.08);color:#0f1117}
+  main{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  .hero{background:linear-gradient(135deg,rgba(124,156,255,.10),rgba(176,124,255,.10));border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:28px}
+  .hero h1{margin:0 0 6px;font-size:1.5rem;line-height:1.3}.hero .sub{color:var(--muted);font-size:.95rem;margin-bottom:14px}
+  .hero .meta{display:flex;gap:8px;flex-wrap:wrap}.hero .meta .pill{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+  section{margin:36px 0}
+  h2{font-size:1.25rem;margin:0 0 4px;display:flex;align-items:center;gap:10px}h2 .num{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--accent)}
+  .sec-desc{color:var(--muted);font-size:.9rem;margin:0 0 16px 38px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 0;overflow:hidden}
+  .card>summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;align-items:center;gap:12px;font-weight:600}.card>summary::-webkit-details-marker{display:none}.card>summary .chev{margin-left:auto;transition:.2s;color:var(--muted)}.card[open]>summary .chev{transform:rotate(90deg)}
+  .card .body{padding:0 18px 16px}.card .body p{margin:8px 0}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.88rem}th,td{border:1px solid var(--border);padding:8px 10px;text-align:left}th{background:var(--surface2);color:var(--muted);font-weight:600}tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .callout{border-left:3px solid var(--accent);background:rgba(124,156,255,.06);padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:.92rem}.callout.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}.callout.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}.callout.bad{border-color:var(--bad);background:rgba(248,113,113,.06)}
+  .callout .lab{font-weight:700;color:var(--accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}.callout.warn .lab{color:var(--warn)}.callout.ok .lab{color:var(--ok)}.callout.bad .lab{color:var(--bad)}
+  .keyformula{text-align:center;font-size:1.05rem;padding:22px;margin:18px 0;border:1px dashed var(--accent);border-radius:12px;background:rgba(124,156,255,.04)}.keyformula code{font-weight:700;color:var(--accent)}
+  /* dag sim */
+  .dag{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:18px}
+  .dag-ctrl{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .dag-graph{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:14px;min-height:220px;font-family:monospace;font-size:.8rem;position:relative}
+  .task-node{display:inline-block;margin:6px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);min-width:120px;vertical-align:top}
+  .task-node.pending{border-color:var(--muted)}.task-node.in_progress{border-color:var(--warn);background:rgba(251,191,36,.08)}.task-node.completed{border-color:var(--ok);background:rgba(74,222,128,.08)}
+  .task-node .tid{font-size:.66rem;color:var(--faint)}.task-node .tsub{font-weight:700;color:var(--text)}.task-node .tst{font-size:.7rem;padding:1px 6px;border-radius:4px;margin-top:4px;display:inline-block}.tst.pending{background:var(--surface);color:var(--muted)}.tst.in_progress{background:rgba(251,191,36,.15);color:var(--warn)}.tst.completed{background:rgba(74,222,128,.15);color:var(--ok)}
+  .task-node .tblock{font-size:.66rem;color:var(--bad);margin-top:3px;display:none}.task-node.blocked .tblock{display:block}
+  .dag-state{margin-top:12px;padding:10px;border-radius:8px;background:var(--surface2);font-size:.82rem}
+  .dag-state b{color:var(--accent)}
+  .arrow-svg{position:absolute;pointer-events:none}
+  .quiz{border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:8px}
+  .q-item{padding:16px;border-bottom:1px solid var(--border)}.q-item:last-child{border-bottom:none}
+  .q-item .stem{font-weight:600;margin-bottom:12px}.q-item .stem .qnum{color:var(--accent);margin-right:8px}
+  .opt{display:block;cursor:pointer;padding:10px 14px;border:1px solid var(--border);border-radius:8px;margin:7px 0;transition:.15s}.opt:hover{border-color:var(--accent);background:var(--surface2)}.opt input{margin-right:8px}
+  .opt.correct{border-color:var(--ok);background:rgba(74,222,128,.1)}.opt.wrong{border-color:var(--bad);background:rgba(248,113,113,.1)}.opt.disabled{cursor:default;pointer-events:none}
+  .explanation{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:.86rem;display:none}.explanation.show{display:block}
+  .explanation.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);color:var(--ok)}.explanation.bad{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);color:var(--bad)}
+  .quiz-result{text-align:center;padding:20px;border-top:1px solid var(--border);font-size:1.05rem;display:none}.quiz-result .score{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .pagenav{display:flex;justify-content:space-between;margin-top:40px;gap:12px}
+  .pagenav a{flex:1;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);font-size:.88rem}.pagenav a:hover{border-color:var(--accent);text-decoration:none}.pagenav a.next{text-align:right}.pagenav a .lbl{display:block;color:var(--muted);font-size:.72rem;margin-bottom:2px}
+  footer{color:var(--faint);font-size:.8rem;text-align:center;padding:24px 20px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="badge">第 12 章</span>
+  <span class="title">生产级 Agent 任务引擎 <span class="muted">· Agent架构实操十二</span></span>
+  <nav><a href="#concepts">概念</a><a href="#sim">DAG 演示</a><a href="#quiz">测验</a></nav>
+  <a class="btn primary" href="#quiz">开始测验</a>
+</div>
+<main>
+  <div class="hero">
+    <h1>5 个工具、3 个状态,撸出一个生产级任务引擎</h1>
+    <div class="sub">真正麻烦的不是列「建库表、写接口、加测试」,而是:哪些任务现在可以开始?谁认领了?进程退出后任务图能否原样恢复?本章:workspace 级 JSON Task DAG。</div>
+    <div class="meta">
+      <span class="pill">⏱ 约 15 分钟</span>
+      <span class="pill">🔧 5 工具</span>
+      <span class="pill">📊 3 状态</span>
+      <span class="pill">+task_dag_json</span>
+    </div>
+  </div>
+  <section>
+    <h2><span class="num">🎯</span> 学习目标</h2>
+    <div class="callout"><span class="lab">学完能答</span>
+      <ul style="margin:8px 0 0;padding-left:20px">
+        <li>todo_write 和 JSON Task DAG 有什么不同?为什么不合并?</li>
+        <li>三个状态是什么?为什么没有第四个 blocked 状态?</li>
+        <li>状态机允许哪些单向推进?有没有 update/delete/unclaim/回退?</li>
+        <li>Task 文件存哪?为什么锁的是整张图不是单个文件?</li>
+        <li>claim 的并发唯一认领是怎么保证的?</li>
+        <li>进程重建后 in_progress 任务怎么处理?</li>
+      </ul>
+    </div>
+  </section>
+  <section id="concepts">
+    <h2><span class="num">🧠</span> 核心概念</h2>
+    <div class="sec-desc">点击展开。</div>
+    <details class="card" open><summary>1 · TODO 与 Task 不是一回事 <span class="chev">▸</span></summary>
+      <div class="body">
+        <table><tr><th>维度</th><th>todo_write</th><th>JSON Task DAG</th></tr><tr><td>粒度</td><td>当前工作步骤快照</td><td>可独立认领/完成的项目任务</td></tr><tr><td>所有者</td><td>单个 Agent session</td><td>当前 workspace</td></tr><tr><td>存储</td><td>进程内存</td><td>.agent_tutorial/.tasks/{uuid}.json</td></tr><tr><td>依赖</td><td>无</td><td>blocked_by 有向边</td></tr><tr><td>重建</td><td>新会话为空</td><td>从磁盘严格恢复</td></tr></table>
+        <p>P12 仍保留 todo_write。模型用 TODO 拆「怎样完成当前任务」,用 Task DAG 管「整个项目哪些先做、哪些被阻塞」。P06 的 task(一次性 subagent)也不等于项目 Task,三种概念不同。</p>
+      </div>
+    </details>
+    <details class="card"><summary>2 · 严格模型:3 状态,无 blocked <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>状态只有三个:<code>pending</code>、<code>in_progress</code>、<code>completed</code>。Task 是构造时校验并冻结的领域对象。</p>
+        <div class="callout bad"><span class="lab">没有第四个 blocked 状态</span> 「阻塞」是派生事实:任务仍是 pending,且至少一个依赖未完成。这样完成上游时不需要批量改写所有下游文件。</div>
+        <p>不变量:pending 必须 owner===null;in_progress 和 completed 必须有非空 owner。id 必须是 canonical UUID 且文件名与 payload ID 完全相同;blocked_by 每个值都是 canonical UUID 且不重复;额外字段/未知状态/坏 UTF-8/坏 JSON 都明确失败。</p>
+      </div>
+    </details>
+    <details class="card"><summary>3 · 状态机:单向推进,无回退 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>pending --claim--> in_progress --complete--> completed</code></pre>
+        <p>当前章节<b>没有</b> update、delete、unclaim 或自动回退。进程重建后,in_progress 仍保持原状态和 owner,不猜测未知副作用是否可以重放。</p>
+      </div>
+    </details>
+    <details class="card"><summary>4 · 路径与文件 <span class="chev">▸</span></summary>
+      <div class="body">
+        <pre><code>workspace/
+  .agent_tutorial/
+    .tasks.lock
+    .tasks/
+      1b73c624-....json
+      9d59f5ec-....json</code></pre>
+        <p>一个文件一个 Task,UTF-8、稳定字段顺序、结尾换行。外部传入的 task ID 先解析成 canonical UUID 再映射文件名——<code>../outside</code>、绝对路径、UUID 替代拼写都无法到文件系统。JsonTaskStore 还验证 .agent_tutorial 和 .tasks 解析结果仍在 workspace 内,目录 symlink/junction 指向外时创建前就失败。</p>
+      </div>
+    </details>
+    <details class="card"><summary>5 · 为什么锁的是整张图 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>claim/complete 需要读依赖状态:一个任务能否 claim 取决于它所有 blocked_by 是否 completed。如果只锁单个文件,两个 Agent 同时认领同一任务、或同时改依赖和被依赖任务时会产生不一致。</p>
+        <p>整图锁:锁内重载全图 → 全图校验(环、缺边、ID 碰撞)→ 条件迁移 → 原子替换。这保证 claim 的并发唯一认领(第一个拿到锁的 claim 成功,其他看到 owner 已变)。原子写用临时文件+sync+rename,读方看不到半写文件。</p>
+      </div>
+    </details>
+    <details class="card"><summary>6 · 5 个工具 <span class="chev">▸</span></summary>
+      <div class="body">
+        <p>五个任务工具使用带动词的完整名称(避免与 P06 的 task 混淆):</p>
+        <table><tr><th>工具</th><th>作用</th></tr><tr><td>create_task</td><td>创建任务(可带 blocked_by)</td></tr><tr><td>list_tasks</td><td>列出任务(可按状态过滤)</td></tr><tr><td>claim_task</td><td>认领一个 ready(pending 且依赖全 completed)任务</td></tr><tr><td>complete_task</td><td>完成自己认领的任务</td></tr><tr><td>get_task</td><td>查询单个任务详情</td></tr></table>
+        <p>主/子 Agent 共享同一任务图(同一 TaskStore),所以子 Agent 也能认领任务。但子 Agent 工具集仍不含 task(递归委派禁止)。</p>
+      </div>
+    </details>
+  </section>
+  <section id="sim">
+    <h2><span class="num">▶️</span> 交互演示:Task DAG 状态机</h2>
+    <div class="sec-desc">点按钮模拟 claim/complete,看任务如何在三状态间单向推进,blocked 任务如何随上游完成而变 ready。注意没有第四个 blocked 状态——它是派生的。</div>
+    <div class="dag">
+      <div class="dag-ctrl">
+        <button class="btn primary" id="claim">🔑 claim 第一个 ready 任务</button>
+        <button class="btn" id="complete">✅ complete 进行中的任务</button>
+        <button class="btn" id="reset">↺ 重置</button>
+      </div>
+      <div class="dag-graph" id="graph"></div>
+      <div class="dag-state" id="state"></div>
+    </div>
+  </section>
+  <section>
+    <h2><span class="num">🔑</span> 一句话总结</h2>
+    <div class="keyformula">5 工具 + 3 状态 + 整图锁 + 无 blocked 第四态 + 从磁盘严格恢复 = 生产级任务引擎</div>
+  </section>
+  <section id="quiz">
+    <h2><span class="num">✅</span> QA 测验</h2>
+    <div class="quiz" id="quizBox"></div>
+  </section>
+  <div class="pagenav">
+    <a class="prev" href="第十一章glm生成.html"><span class="lbl">上一章</span>← API 韧性</a>
+    <a class="next" href="第十三章glm生成.html"><span class="lbl">下一章</span>从串行到异步 →</a>
+  </div>
+</main>
+<footer>Agent 架构实操系列 · 交互学习版 · 第 12 章 / 共 20 章</footer>
+<script>
+let tasks=[
+  {id:"A1",subject:"建库表",status:"completed",owner:"alice",blockedBy:[]},
+  {id:"B2",subject:"写接口",status:"in_progress",owner:"bob",blockedBy:["A1"]},
+  {id:"C3",subject:"加测试",status:"pending",owner:null,blockedBy:["B2"]},
+  {id:"D4",subject:"补文档",status:"pending",owner:null,blockedBy:["A1"]},
+];
+const graph=document.getElementById("graph"),stateEl=document.getElementById("state");
+function isReady(t){return t.status==="pending"&&t.blockedBy.every(id=>tasks.find(x=>x.id===id).status==="completed");}
+function isBlocked(t){return t.status==="pending"&&t.blockedBy.some(id=>tasks.find(x=>x.id===id).status!=="completed");}
+function render(){
+  graph.innerHTML=tasks.map(t=>`<div class="task-node ${t.status} ${isBlocked(t)?'blocked':''}"><div class="tid">${t.id}</div><div class="tsub">${t.subject}</div><div class="tst ${t.status}">${t.status}</div>${t.owner?`<div class="tid">owner: ${t.owner}</div>`:""}<div class="tblock">⛔ blocked by: ${t.blockedBy.filter(id=>tasks.find(x=>x.id===id).status!=="completed").join(",")}</div></div>`).join("");
+  const ready=tasks.filter(isReady).length, blocked=tasks.filter(isBlocked).length;
+  stateEl.innerHTML=`共 <b>${tasks.length}</b> 个任务 · completed:<b>${tasks.filter(t=>t.status==="completed").length}</b> · in_progress:<b>${tasks.filter(t=>t.status==="in_progress").length}</b> · pending:<b>${tasks.filter(t=>t.status==="pending").length}</b> · ready(可claim):<b>${ready}</b> · blocked(派生):<b>${blocked}</b>`;
+}
+document.getElementById("claim").onclick=()=>{
+  const t=tasks.find(isReady);
+  if(!t){stateEl.innerHTML="<b style='color:var(--bad)'>没有 ready 任务可认领</b>";return;}
+  t.status="in_progress";t.owner="you";render();
+};
+document.getElementById("complete").onclick=()=>{
+  const t=tasks.find(t=>t.status==="in_progress"&&t.owner==="you");
+  if(!t){stateEl.innerHTML="<b style='color:var(--bad)'>你没有进行中的任务</b>";return;}
+  t.status="completed";render();
+};
+document.getElementById("reset").onclick=()=>{tasks=[{id:"A1",subject:"建库表",status:"completed",owner:"alice",blockedBy:[]},{id:"B2",subject:"写接口",status:"in_progress",owner:"bob",blockedBy:["A1"]},{id:"C3",subject:"加测试",status:"pending",owner:null,blockedBy:["B2"]},{id:"D4",subject:"补文档",status:"pending",owner:null,blockedBy:["A1"]}];render();};
+render();
+
+const questions=[
+  {q:"todo_write 和 JSON Task DAG 的关键区别?",o:["一样","TODO是当前会话步骤快照(进程内存,无依赖,新会话空);Task DAG是workspace级项目任务(.tasks/*.json,有blocked_by有向边,从磁盘恢复)","TODO更高级","Task DAG是TODO的子集"],a:1,e:"P12保留todo_write。模型用TODO拆「怎样完成当前任务」,用TaskDAG管「整个项目哪些先做哪些被阻塞」。P06的task(一次性subagent)也不等于项目Task,三种概念不同。"},
+  {q:"Task 有几个状态?为什么没有第四个 blocked 状态?",o:["4个,含blocked","3个:pending/in_progress/completed。blocked是派生事实(仍pending且至少一依赖未完成),这样完成上游不需批量改写下游","2个","5个"],a:1,e:"blocked是派生的。任务仍pending,且blocked_by中至少一个未completed。这样完成上游时不需要批量改写所有下游文件,只需读取时计算。"},
+  {q:"Task 状态机允许哪些推进?有回退吗?",o:["可任意切换","pending--claim-->in_progress--complete-->completed 单向推进,无update/delete/unclaim/回退","可回退到pending","可删除"],a:1,e:"当前章节没有update、delete、unclaim或自动回退。进程重建后in_progress仍保持原状态和owner,不猜测未知副作用是否可重放。"},
+  {q:"Task 文件存在哪?如何防止路径越权?",o:["workspace根目录","workspace/.agent_tutorial/.tasks/{uuid}.json;外部ID先解析成canonical UUID再映射文件名,../outside/绝对路径/UUID替代拼写都无法到文件系统","任意目录","内存"],a:1,e:"JsonTaskStore还验证.agent_tutorial和.tasks解析结果仍在workspace内,目录symlink/junction指向外时创建前就失败。一个文件一个Task,UTF-8稳定字段顺序结尾换行。"},
+  {q:"为什么锁的是整张图而不是单个文件?",o:["性能","claim/complete需读依赖状态:能否claim取决于所有blocked_by是否completed;只锁单文件会两Agent同时认领同一任务或同时改依赖和被依赖产生不一致","文件系统要求","避免死锁"],a:1,e:"整图锁:锁内重载全图→全图校验(环/缺边/ID碰撞)→条件迁移→原子替换。保证claim并发唯一认领(第一个拿锁的claim成功,其他看到owner已变)。原子写用临时文件+sync+rename。"},
+  {q:"进程重建后,in_progress 任务怎么处理?",o:["自动回退pending","保持原状态和owner,不猜测未知副作用是否可重试","删除","自动complete"],a:1,e:"没有unclaim或自动回退。in_progress仍保持原状态和owner。这避免在不知道副作用是否已发生时盲目重放。从磁盘严格恢复——坏JSON/缺边/环/ID碰撞都会在加载时失败。"},
+  {q:"pending 状态的 owner 必须是什么?in_progress 呢?",o:["都可为空","pending必须owner===null;in_progress和completed必须有非空owner","都非空","pending非空in_progress空"],a:1,e:"这是不变量。pending未认领所以owner===null;in_progress和completed已认领所以必须有非空owner。id必须是canonical UUID且文件名与payload ID完全相同;blocked_by每个值是canonical UUID且不重复。"},
+  {q:"P12 新增的 5 个工具为什么用带动词的完整名称?",o:["美观","避免与P06的task(一次性subagent)混淆;三种概念(todo_write/task/TaskDAG工具)不同","OpenAI要求","更短"],a:1,e:"create_task/list_tasks/claim_task/complete_task/get_task。主/子Agent共享同一任务图(同一TaskStore),子Agent也能认领任务。但子Agent工具集仍不含task(递归委派禁止)。"},
+];
+const quizBox=document.getElementById("quizBox");const answered={};
+questions.forEach((q,i)=>{const item=document.createElement("div");item.className="q-item";let opts=q.o.map((t,j)=>`<label class="opt" data-i="${i}" data-j="${j}"><input type="radio" name="q${i}">${t}</label>`).join("");item.innerHTML=`<div class="stem"><span class="qnum">Q${i+1}.</span>${q.q}</div>${opts}<div class="explanation" id="exp${i}"></div>`;quizBox.appendChild(item);});
+const resultBox=document.createElement("div");resultBox.className="quiz-result";resultBox.id="quizResult";quizBox.appendChild(resultBox);
+quizBox.addEventListener("change",ev=>{const lbl=ev.target.closest(".opt");if(!lbl)return;const i=+lbl.dataset.i,j=+lbl.dataset.j;if(answered[i]!==undefined)return;answered[i]=j;const q=questions[i];const opts=quizBox.querySelectorAll(`.q-item:nth-child(${i+1}) .opt`);opts.forEach((o,k)=>{o.classList.add("disabled");if(k===q.a)o.classList.add("correct");if(k===j&&j!==q.a)o.classList.add("wrong");});const exp=document.getElementById("exp"+i);exp.className="explanation show "+(j===q.a?"ok":"bad");exp.innerHTML=`<b>${j===q.a?"✓ 答对了":"✗ 正确答案:"+String.fromCharCode(65+q.a)}</b> ${q.e}`;if(Object.keys(answered).length>=questions.length){const score=questions.filter((q,i)=>answered[i]===q.a).length,pct=Math.round(score/questions.length*100);let msg=pct===100?"🏆 满分!任务引擎你已经吃透":pct>=75?"👏 不错,扫一眼错题":pct>=50?"💪 过半,重看三状态和整图锁":"📚 重看核心概念和DAG演示";resultBox.style.display="block";resultBox.innerHTML=`<div class="score">${score} / ${questions.length}</div><div>${msg}</div>`;resultBox.scrollIntoView({behavior:"smooth",block:"center"});}});
+</script>
+</body>
+</html>
